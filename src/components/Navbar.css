@@ -1,0 +1,207 @@
+/* ==============================
+   Variables CSS (paleta)
+   ============================== */
+   :root {
+    --sidebar-bg: #006875;       /* Fondo principal de la barra */
+    --sidebar-text: #ffffff;     /* Color de texto en la barra */
+    --sidebar-hover: rgba(255, 255, 255, 0.2);
+    --sidebar-active: #00aabb;   /* Color para el ítem activo */
+    --sidebar-transition: 0.3s ease;
+  }
+  
+  /* Contenedor principal de la barra lateral */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    background-color: var(--sidebar-bg);
+    color: var(--sidebar-text);
+    width: 250px;
+    display: flex;
+    flex-direction: column;
+    transition: width var(--sidebar-transition), transform var(--sidebar-transition);
+    overflow: hidden;
+    z-index: 1000;
+  }
+  
+  .sidebar.collapsed {
+    width: 80px;
+  }
+  
+  /* Botón de colapso */
+  .sidebar-toggle {
+    padding: 10px;
+    cursor: pointer;
+    color: var(--sidebar-text);
+    display: flex;
+    justify-content: flex-end;
+  }
+  
+  .toggle-icon {
+    font-size: 24px;
+    transition: transform var(--sidebar-transition);
+  }
+  
+  .sidebar.collapsed .toggle-icon {
+    transform: rotate(180deg);
+  }
+  
+  /* Logo */
+  .sidebar-logo {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  
+  .logo-text {
+    margin: 0;
+    font-size: 24px;
+    font-weight: bold;
+    font-family: "Arial", sans-serif;
+    color: var(--sidebar-text);
+  }
+  
+  /* Ajuste para cuando la barra lateral está colapsada */
+  .sidebar.collapsed .logo-text {
+    font-size: 20px;
+  }
+  
+  /* Menú */
+  .sidebar-menu {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    flex: 1; /* Para ocupar el espacio vertical restante */
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .sidebar-menu li {
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+  }
+  
+  .sidebar-menu li:hover {
+    background-color: var(--sidebar-hover);
+    transition: background-color var(--sidebar-transition);
+  }
+  
+  .sidebar-menu li a {
+    text-decoration: none;
+    color: var(--sidebar-text);
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    font-size: 18px;
+    font-family: "Roboto", sans-serif;
+  }
+  
+  /* Ocultar texto al estar colapsado */
+  .sidebar-menu li a span {
+    display: inline-block;
+    transition: opacity var(--sidebar-transition);
+  }
+  
+  .sidebar.collapsed .sidebar-menu li span {
+    opacity: 0;
+    pointer-events: none;
+  }
+  
+  /* Espaciado adicional entre menús */
+  .sidebar-menu li:not(:last-child) {
+    margin-bottom: 10px;
+  }
+  
+  /* Ítem activo (ruta actual) */
+  .sidebar-menu li.active {
+    background-color: var(--sidebar-active);
+    border-left: 4px solid #fff; /* Indicador en el borde izquierdo */
+  }
+  
+  /* Botón para dispositivos móviles */
+  .sidebar-mobile-toggle {
+    display: none;
+  }
+  
+  @media (max-width: 768px) {
+    /* En pantallas pequeñas, inicia colapsada */
+    .sidebar {
+      width: 80px; /* Colapsar en pantallas pequeñas */
+    }
+  
+    .sidebar.collapsed {
+      width: 0; /* Ocultar completamente si está colapsada */
+    }
+  
+    .sidebar-menu li a span {
+      display: none; /* Ocultar texto en pantallas pequeñas */
+    }
+  
+    .sidebar-toggle {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 1100;
+    }
+  
+    /* Botón para dispositivos móviles */
+    .sidebar-mobile-toggle {
+      display: block;
+      position: fixed;
+      top: 15px;
+      left: 15px;
+      background-color: #1a1a2e;
+      color: white;
+      border: none;
+      padding: 10px;
+      border-radius: 5px;
+      z-index: 1100;
+      cursor: pointer;
+    }
+  }
+  
+  /* ===== Estilo especial para el item de IA ===== */
+  .sidebar-menu li.ia-item {
+    background-color: #00ff84; /* Color de fondo distintivo */
+    border-radius: 8px;        /* Bordes redondeados */
+    margin: 10px 15px;         /* Separarlo un poco del resto */
+    padding: 15px 20px;        /* Más padding para destacar */
+    transition: background-color var(--sidebar-transition),
+                transform var(--sidebar-transition);
+  }
+  
+  .sidebar-menu li.ia-item:hover {
+    background-color: #28c76f;
+    transform: translateX(3px);
+  }
+  
+  .sidebar-menu li.ia-item a {
+    color: white;     /* Texto en blanco para mayor contraste */
+    font-weight: bold; 
+  }
+  
+  .sidebar-menu li.ia-item .MuiSvgIcon-root {
+    color: white; /* Icono en blanco */
+    animation: pulse 2s infinite; /* Animación sutil */
+  }
+  
+  /* Animación para el icono de IA */
+  @keyframes pulse {
+    0% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.1);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+  

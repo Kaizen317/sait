@@ -1,0 +1,36 @@
+.alarm-notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    z-index: 1000;
+    animation: slideIn 0.3s ease-out;
+  }
+  
+  .alarm-notification.alta {
+    background-color: #f44336;
+    color: white;
+  }
+  
+  .alarm-notification.media {
+    background-color: #ff9800;
+    color: white;
+  }
+  
+  .alarm-notification.baja {
+    background-color: #2196f3;
+    color: white;
+  }
+  
+  @keyframes slideIn {
+    from {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
