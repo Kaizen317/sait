@@ -1,0 +1,69 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Resources:
+  TicketsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: sait-tickets
+      AttributeDefinitions:
+        - AttributeName: ticketId
+          AttributeType: S
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: createdAt
+          AttributeType: S
+      KeySchema:
+        - AttributeName: ticketId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: UserIdIndex
+          KeySchema:
+            - AttributeName: userId
+              KeyType: HASH
+            - AttributeName: createdAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+          ProvisionedThroughput:
+            ReadCapacityUnits: 5
+            WriteCapacityUnits: 5
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+
+  TicketsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./lambda/
+      Handler: tickets.lambda_handler
+      Runtime: python3.9
+      Timeout: 10
+      MemorySize: 128
+      Environment:
+        Variables:
+          TICKETS_TABLE: sait-tickets
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: sait-tickets
+      Events:
+        CreateTicket:
+          Type: Api
+          Properties:
+            Path: /tickets
+            Method: post
+        GetTickets:
+          Type: Api
+          Properties:
+            Path: /tickets
+            Method: get
+        GetTicketById:
+          Type: Api
+          Properties:
+            Path: /tickets/{ticketId}
+            Method: get
+        UpdateTicket:
+          Type: Api
+          Properties:
+            Path: /tickets/{ticketId}
+            Method: put

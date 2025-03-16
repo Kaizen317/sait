@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="800" height="600" viewBox="0 0 800 600" xmlns="http://www.w3.org/2000/svg">
+  <!-- Definiciones para gradientes, sombras y animaciones -->
+  <defs>
+    <!-- Gradiente para el marco del monitor -->
+    <linearGradient id="frameGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#2C3E50;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1A252F;stop-opacity:1" />
+    </linearGradient>
+    <!-- Gradiente para el encabezado con verde -->
+    <linearGradient id="headerGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#27AE60;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#219653;stop-opacity:1" />
+    </linearGradient>
+    <!-- Gradiente para gráficos -->
+    <linearGradient id="chartGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FFFFFF;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#ECF0F1;stop-opacity:1" />
+    </linearGradient>
+    <!-- Sombra suave -->
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="3" result="blur"/>
+      <feOffset in="blur" dx="2" dy="2" result="offsetBlur"/>
+      <feFlood flood-color="rgba(0,0,0,0.2)"/>
+      <feComposite in2="offsetBlur" operator="in"/>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <!-- Brillo sutil -->
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <!-- Brillo para datos -->
+    <filter id="dataGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Base del monitor con animación suave -->
+  <rect x="250" y="450" width="300" height="20" fill="#2C3E50" rx="10">
+    <animate attributeName="y" values="450;448;450" dur="1.5s" repeatCount="indefinite" />
+  </rect>
+  <rect x="370" y="470" width="60" height="30" fill="#2C3E50">
+    <animate attributeName="y" values="470;468;470" dur="1.5s" repeatCount="indefinite" />
+  </rect>
+
+  <!-- Marco del monitor con gradiente y sombra -->
+  <g filter="url(#shadow)">
+    <rect x="100" y="50" width="600" height="400" fill="url(#frameGradient)" rx="15"/>
+  </g>
+  <rect x="120" y="70" width="560" height="360" fill="url(#chartGradient)" rx="10"/>
+
+  <!-- Encabezado del panel con gradiente, brillo y animación -->
+  <g filter="url(#glow)">
+    <rect x="120" y="70" width="560" height="50" fill="url(#headerGradient)" rx="10">
+      <animate attributeName="height" values="50;52;50" dur="1.5s" repeatCount="indefinite" />
+    </rect>
+  </g>
+  <text x="150" y="100" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="28" font-weight="bold">SAIT</text>
+
+  <!-- Primera fila de gráficos -->
+  <g transform="translate(140, 140)">
+    <!-- Gráfico de líneas con animación -->
+    <g filter="url(#shadow)">
+      <rect x="0" y="0" width="160" height="120" fill="url(#chartGradient)" rx="8"/>
+    </g>
+    <path d="M 10 90 L 60 40 L 110 70 L 150 30" stroke="#27AE60" stroke-width="3" fill="none">
+      <animate attributeName="stroke-dasharray" from="0 300" to="300 0" dur="2s" repeatCount="indefinite" />
+    </path>
+    <text x="10" y="110" fill="#27AE60" font-family="Arial, sans-serif" font-size="14" font-weight="bold" filter="url(#dataGlow)">Tendencias</text>
+
+    <!-- Gráfico de barras con animación -->
+    <g filter="url(#shadow)">
+      <rect x="180" y="0" width="160" height="120" fill="url(#chartGradient)" rx="8"/>
+    </g>
+    <rect x="200" y="40" width="20" height="60" fill="#E74C3C">
+      <animate attributeName="height" values="0;60;50;60" dur="2s" repeatCount="indefinite" />
+    </rect>
+    <rect x="240" y="30" width="20" height="70" fill="#27AE60">
+      <animate attributeName="height" values="0;70;60;70" dur="2s" repeatCount="indefinite" />
+    </rect>
+    <rect x="280" y="50" width="20" height="50" fill="#2ECC71">
+      <animate attributeName="height" values="0;50;40;50" dur="2s" repeatCount="indefinite" />
+    </rect>
+    <text x="200" y="110" fill="#000" font-family="Arial, sans-serif" font-size="14" font-weight="bold" filter="url(#dataGlow)">Energía</text>
+
+    <!-- Gráfico apilado con animación -->
+    <g filter="url(#shadow)">
+      <rect x="360" y="0" width="160" height="120" fill="url(#chartGradient)" rx="8"/>
+    </g>
+    <rect x="380" y="30" width="40" height="40" fill="#9B59B6">
+      <animate attributeName="height" values="0;40;30;40" dur="2s" repeatCount="indefinite" />
+    </rect>
+    <rect x="380" y="70" width="40" height="30" fill="#E74C3C">
+      <animate attributeName="height" values="0;30;20;30" dur="2s" repeatCount="indefinite" begin="0.5s" />
+    </rect>
+    <rect x="440" y="40" width="40" height="30" fill="#9B59B6">
+      <animate attributeName="height" values="0;30;20;30" dur="2s" repeatCount="indefinite" />
+    </rect>
+    <rect x="440" y="70" width="40" height="30" fill="#E74C3C">
+      <animate attributeName="height" values="0;30;20;30" dur="2s" repeatCount="indefinite" begin="0.5s" />
+    </rect>
+    <text x="380" y="110" fill="#000" font-family="Arial, sans-serif" font-size="14" font-weight="bold" filter="url(#dataGlow)">Categorías</text>
+  </g>
+
+  <!-- Segunda fila de gráficos -->
+  <g transform="translate(140, 280)">
+    <!-- Gráfico de líneas con animación -->
+    <g filter="url(#shadow)">
+      <rect x="0" y="0" width="160" height="120" fill="url(#chartGradient)" rx="8"/>
+    </g>
+    <path d="M 10 90 L 60 40 L 110 70 L 150 30" stroke="#27AE60" stroke-width="3" fill="none">
+      <animate attributeName="stroke-dasharray" from="0 300" to="300 0" dur="2s" repeatCount="indefinite" />
+    </path>
+    <text x="10" y="110" fill="#27AE60" font-family="Arial, sans-serif" font-size="14" font-weight="bold" filter="url(#dataGlow)">Tendencias</text>
+
+    <!-- Gráfico de barras con animación -->
+    <g filter="url(#shadow)">
+      <rect x="180" y="0" width="160" height="120" fill="url(#chartGradient)" rx="8"/>
+    </g>
+    <rect x="200" y="40" width="20" height="60" fill="#E74C3C">
+      <animate attributeName="height" values="0;60;50;60" dur="2s" repeatCount="indefinite" />
+    </rect>
+    <rect x="240" y="30" width="20" height="70" fill="#27AE60">
+      <animate attributeName="height" values="0;70;60;70" dur="2s" repeatCount="indefinite" />
+    </rect>
+    <rect x="280" y="50" width="20" height="50" fill="#2ECC71">
+      <animate attributeName="height" values="0;50;40;50" dur="2s" repeatCount="indefinite" />
+    </rect>
+    <text x="200" y="110" fill="#000" font-family="Arial, sans-serif" font-size="14" font-weight="bold" filter="url(#dataGlow)">Data</text>
+
+    <!-- Gráfico apilado con animación -->
+    <g filter="url(#shadow)">
+      <rect x="360" y="0" width="160" height="120" fill="url(#chartGradient)" rx="8"/>
+    </g>
+    <rect x="380" y="30" width="40" height="40" fill="#9B59B6">
+      <animate attributeName="height" values="0;40;30;40" dur="2s" repeatCount="indefinite" />
+    </rect>
+    <rect x="380" y="70" width="40" height="30" fill="#E74C3C">
+      <animate attributeName="height" values="0;30;20;30" dur="2s" repeatCount="indefinite" begin="0.5s" />
+    </rect>
+    <rect x="440" y="40" width="40" height="30" fill="#9B59B6">
+      <animate attributeName="height" values="0;30;20;30" dur="2s" repeatCount="indefinite" />
+    </rect>
+    <rect x="440" y="70" width="40" height="30" fill="#E74C3C">
+      <animate attributeName="height" values="0;30;20;30" dur="2s" repeatCount="indefinite" begin="0.5s" />
+    </rect>
+    <text x="380" y="110" fill="#000" font-family="Arial, sans-serif" font-size="14" font-weight="bold" filter="url(#dataGlow)">Históricos</text>
+  </g>
+
+  <!-- Botón de encendido con animación suave -->
+  <circle cx="400" cy="430" r="15" fill="#27AE60" filter="url(#glow)">
+    <animate attributeName="r" values="15;18;15" dur="1.5s" repeatCount="indefinite" />
+  </circle>
+</svg>

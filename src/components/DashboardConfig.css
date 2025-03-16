@@ -1,0 +1,253 @@
+.dashboard-config-container {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  min-height: 100vh;
+  padding: 2rem;
+}
+
+.dashboard-main-content {
+  background: rgba(17, 25, 40, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.125);
+  border-radius: 20px;
+  padding: 2rem;
+  margin-left: 250px;
+  max-width: calc(100% - 250px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+}
+
+.dashboard-header {
+  margin-bottom: 2.5rem;
+  text-align: center;
+  position: relative;
+}
+
+.dashboard-header::after {
+  content: '';
+  position: absolute;
+  bottom: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100px;
+  height: 3px;
+  background: linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%);
+  border-radius: 3px;
+  box-shadow: 0 2px 4px rgba(59, 130, 246, 0.5);
+}
+
+.dashboard-title {
+  color: #ffffff;
+  font-size: 2.2rem;
+  font-weight: 600;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  letter-spacing: 0.5px;
+}
+
+.action-buttons-container {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+  background: rgba(17, 25, 40, 0.75);
+  padding: 1.5rem;
+  border-radius: 15px;
+  border: 1px solid rgba(255, 255, 255, 0.125);
+}
+
+.action-button {
+  background: rgba(29, 53, 87, 0.8) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.125) !important;
+  color: #ffffff !important;
+  padding: 0.8rem 1.5rem !important;
+  border-radius: 12px !important;
+  transition: all 0.3s ease !important;
+  text-transform: none !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.5px !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2) !important;
+}
+
+.action-button:hover {
+  background: rgba(29, 53, 87, 0.9) !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3) !important;
+}
+
+.add-component-button {
+  background: linear-gradient(45deg, #3498db, #2980b9) !important;
+  color: white !important;
+}
+
+.add-navigation-button {
+  background: linear-gradient(45deg, #9b59b6, #8e44ad) !important;
+  color: white !important;
+}
+
+.save-dashboard-button {
+  background: linear-gradient(45deg, #2ecc71, #27ae60) !important;
+  color: white !important;
+}
+
+.active-subdashboard {
+  padding: 1.5rem;
+  background: #1e293b;
+  border-radius: 15px;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  margin-bottom: 2rem;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.active-subdashboard::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background: linear-gradient(to right, #3b82f6, #60a5fa);
+}
+
+.subdashboards-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: #1e293b;
+  border-radius: 15px;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  justify-content: center;
+}
+
+.subdashboard-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #2c3e50;
+  padding: 0.5rem;
+  border-radius: 12px;
+  transition: all 0.3s ease;
+}
+
+.subdashboard-item:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.subdashboard-button {
+  padding: 0.8rem 1.2rem !important;
+  border-radius: 10px !important;
+  font-weight: 500 !important;
+  min-width: 150px !important;
+  color: white !important;
+  text-transform: none !important;
+  letter-spacing: 0.5px !important;
+}
+
+.component-grid {
+  gap: 2rem;
+}
+
+.component-card {
+  background: #1e293b;
+  border-radius: 15px;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+  transition: all 0.3s ease;
+  overflow: hidden;
+}
+
+.component-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 15px rgba(0,0,0,0.1);
+}
+
+.component-header {
+  padding: 1.2rem;
+  border-bottom: 1px solid #2c3e50;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: linear-gradient(to right, #2c3e50, #1e293b);
+}
+
+.component-title {
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: #ecf0f1;
+  margin-left: 0.5rem;
+}
+
+.component-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.component-actions button {
+  transition: all 0.2s ease !important;
+}
+
+.component-actions button:hover {
+  background-color: rgba(0,0,0,0.05) !important;
+  transform: scale(1.1);
+}
+
+.component-content {
+  padding: 1.5rem;
+  position: relative;
+}
+
+/* Estilos para el modo oscuro */
+@media (prefers-color-scheme: dark) {
+  .dashboard-config-container {
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  }
+
+  .dashboard-title {
+    color: #ecf0f1;
+  }
+
+  .active-subdashboard,
+  .subdashboards-container,
+  .component-card {
+    background: #1e293b;
+    color: #ecf0f1;
+  }
+
+  .component-header {
+    background: linear-gradient(to right, #2c3e50, #1e293b);
+    border-bottom: 1px solid #2c3e50;
+  }
+
+  .component-title {
+    color: #ecf0f1;
+  }
+
+  .subdashboard-item {
+    background: #2c3e50;
+  }
+}
+
+/* Animaciones */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.dashboard-header,
+.action-buttons-container,
+.active-subdashboard,
+.subdashboards-container,
+.component-card {
+  animation: fadeIn 0.5s ease-out forwards;
+}

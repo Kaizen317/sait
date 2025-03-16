@@ -13,12 +13,12 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TablePagination,
   Paper,
   IconButton,
   Snackbar,
   Alert as MuiAlert,
   MenuItem,
-  TablePagination,
   FormControl,
   Select,
   InputLabel,
@@ -31,49 +31,155 @@ import {
   DialogContent,
   DialogContentText,
   DialogTitle,
+  useTheme,
 } from "@mui/material";
 import {
   Add as AddIcon,
   Delete as DeleteIcon,
   FileDownload as FileDownloadIcon,
   Edit as EditIcon,
-  Email as EmailIcon,
   Visibility as VisibilityIcon,
-} from '@mui/icons-material';
+} from "@mui/icons-material";
 import { MqttContext } from "./MqttContext";
-import { styled } from '@mui/material/styles';
-import CorreoAlarmaModal from './CorreoAlarmaModal';
+import { styled } from "@mui/material/styles";
 
-// Estilos para las notificaciones de alarma
-const AlarmNotification = styled('div')(({ severity }) => ({
-  position: 'fixed',
-  top: '20px',
-  right: '20px',
-  padding: '15px',
-  borderRadius: '8px',
-  boxShadow: '0 4px 8px rgba(0,0,0,0.2)',
-  zIndex: 1000,
-  animation: 'slideIn 0.3s ease-out',
-  backgroundColor: severity === 'alta' ? '#f44336' : 
-                  severity === 'media' ? '#ff9800' : 
-                  severity === 'baja' ? '#2196f3' : '#666',
-  color: 'white',
-  '@keyframes slideIn': {
-    from: {
-      transform: 'translateX(100%)',
-      opacity: 0,
+// Tema personalizado
+const theme = {
+  palette: {
+    primary: { main: "#4CAF50" },
+    secondary: { main: "#FF5722" },
+    background: { default: "#f9fafb", paper: "#ffffff" },
+    text: { primary: "#2d3748", secondary: "#718096" },
+  },
+  typography: {
+    fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
+    h6: { fontWeight: 600, color: "#2d3748" },
+  },
+};
+
+// Estilos personalizados
+const StyledTableContainer = styled(TableContainer)(({ theme }) => ({
+  borderRadius: "12px",
+  boxShadow: "0 4px 20px rgba(0, 0, 0, 0.05)",
+  "& .MuiTable-root": {
+    borderCollapse: "separate",
+    borderSpacing: "0 12px",
+  },
+  "& .MuiTableRow-root": {
+    backgroundColor: theme.palette.background.paper,
+    transition: "background-color 0.3s ease",
+    "&:hover": {
+      backgroundColor: "rgba(76, 175, 80, 0.05)",
     },
-    to: {
-      transform: 'translateX(0)',
-      opacity: 1,
+  },
+  "& .MuiTableCell-root": {
+    border: "none",
+    padding: "16px",
+    fontSize: "0.875rem",
+  },
+  "& .MuiTableHead-root .MuiTableRow-root": {
+    backgroundColor: "rgba(76, 175, 80, 0.1)",
+  },
+  "& .MuiTableHead-root .MuiTableCell-root": {
+    color: theme.palette.text.secondary,
+    fontWeight: 600,
+  },
+}));
+
+const StatusChip = styled(Chip)(({ status, theme }) => ({
+  borderRadius: "16px",
+  fontWeight: 500,
+  ...(status === "active" && {
+    backgroundColor: "rgba(76, 175, 80, 0.15)",
+    color: theme.palette.primary.main,
+  }),
+  ...(status === "inactive" && {
+    backgroundColor: "rgba(158, 158, 158, 0.15)",
+    color: "#9E9E9E",
+  }),
+}));
+
+const StyledModal = styled(Modal)(({ theme }) => ({
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  "& .MuiPaper-root": {
+    borderRadius: "16px",
+    boxShadow: "0 8px 32px rgba(0, 0, 0, 0.1)",
+    padding: theme.spacing(4),
+    backgroundColor: theme.palette.background.paper,
+    maxWidth: "600px",
+    width: "90%",
+    maxHeight: "90vh",
+    overflowY: "auto",
+  },
+}));
+
+const ActionButton = styled(Button)(({ theme, color = "primary" }) => ({
+  borderRadius: "8px",
+  textTransform: "none",
+  padding: "10px 20px",
+  fontWeight: 600,
+  boxShadow: "none",
+  "&:hover": {
+    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
+    transform: "translateY(-2px)",
+    transition: "all 0.3s ease",
+  },
+  ...(color === "primary" && {
+    backgroundColor: theme.palette.primary.main,
+    color: "#ffffff",
+  }),
+  ...(color === "secondary" && {
+    backgroundColor: theme.palette.secondary.main,
+    color: "#ffffff",
+  }),
+}));
+
+const FormTextField = styled(TextField)(({ theme }) => ({
+  "& .MuiOutlinedInput-root": {
+    borderRadius: "8px",
+    "& fieldset": {
+      borderColor: theme.palette.grey[300],
+    },
+    "&:hover fieldset": {
+      borderColor: theme.palette.primary.main,
+    },
+    "&.Mui-focused fieldset": {
+      borderColor: theme.palette.primary.main,
+      boxShadow: `0 0 0 2px ${theme.palette.primary.main}33`,
     },
   },
 }));
 
-// Estados iniciales
+const AlarmNotification = styled("div")(({ severity, theme }) => ({
+  position: "fixed",
+  top: "20px",
+  right: "20px",
+  padding: "15px 20px",
+  borderRadius: "12px",
+  boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+  zIndex: 1000,
+  animation: "slideIn 0.3s ease-out",
+  backgroundColor:
+    severity === "alta"
+      ? "#f44336"
+      : severity === "media"
+      ? "#ff9800"
+      : severity === "baja"
+      ? "#2196f3"
+      : "#666",
+  color: "#ffffff",
+  "@keyframes slideIn": {
+    from: { transform: "translateX(100%)", opacity: 0 },
+    to: { transform: "translateX(0)", opacity: 1 },
+  },
+}));
+
 const Alarmas = () => {
+  const theme = useTheme(); // Usar el tema de Material-UI
   const { mqttData, subscribeToTopic } = useContext(MqttContext);
-  const [alarms, setAlarms] = useState([]); // Lista de alarmas
+  const [alarms, setAlarms] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newAlarm, setNewAlarm] = useState({
     name: "",
@@ -84,7 +190,8 @@ const Alarmas = () => {
     valueType: "number",
     value: "",
     compareVariable: "",
-    severity: "" 
+    severity: "",
+    waitTime: "",
   });
   const [isEditing, setIsEditing] = useState(false);
   const [editIndex, setEditIndex] = useState(null);
@@ -95,38 +202,40 @@ const Alarmas = () => {
   const [filterSeverity, setFilterSeverity] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(5);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [deleteIndex, setDeleteIndex] = useState(null);
   const [devices, setDevices] = useState([]);
   const [selectedDevice, setSelectedDevice] = useState("");
   const [subtopics, setSubtopics] = useState([]);
   const [selectedSubtopic, setSelectedSubtopic] = useState("");
   const [variables, setVariables] = useState([]);
-  const [topicConcatenado, setTopicConcatenado] = useState('');
+  const [topicConcatenado, setTopicConcatenado] = useState("");
   const [isLoadingVariables, setIsLoadingVariables] = useState(false);
   const [showSearchButton, setShowSearchButton] = useState(false);
-  const [mqttTopics, setMqttTopics] = useState([]); // Lista de topics MQTT
-  const [threshold, setThreshold] = useState(50); // Umbral del slider
+  const [mqttTopics, setMqttTopics] = useState([]);
+  const [threshold, setThreshold] = useState(50);
   const [showSubtopics, setShowSubtopics] = useState(false);
   const [activeAlarms, setActiveAlarms] = useState([]);
   const [highlightedAlarms, setHighlightedAlarms] = useState([]);
-  const [lastSentTimes, setLastSentTimes] = useState({});
-  const [sendingEmails, setSendingEmails] = useState({});
-  const apiBaseUrl = 'https://z9tss4i6we.execute-api.us-east-1.amazonaws.com/devices';
-
-  const userId = localStorage.getItem('userId');
+  const apiBaseUrl = "https://z9tss4i6we.execute-api.us-east-1.amazonaws.com/devices";
+  const userId = localStorage.getItem("userId");
   const [openDialog, setOpenDialog] = useState(false);
-  const [confirmationText, setConfirmationText] = useState('');
+  const [confirmationText, setConfirmationText] = useState("");
   const [snackbarOpen, setSnackbarOpen] = useState(false);
-  const [snackbarMessage, setSnackbarMessage] = useState('');
-  const [snackbarSeverity, setSnackbarSeverity] = useState('success');
+  const [snackbarMessage, setSnackbarMessage] = useState("");
+  const [snackbarSeverity, setSnackbarSeverity] = useState("success");
   const [alarmToDelete, setAlarmToDelete] = useState(null);
-  const [emailRecipients, setEmailRecipients] = useState([]); // New state for email recipients
+  const [alertShown, setAlertShown] = useState(false);
+  const [openActivatedAlarmsModal, setOpenActivatedAlarmsModal] = useState(false);
+  const [activatedAlarms, setActivatedAlarms] = useState([]);
+  const [emailRecipients, setEmailRecipients] = useState([]);
   const [isCorreoModalOpen, setIsCorreoModalOpen] = useState(false);
-  const [alertShown, setAlertShown] = useState(false); // New state to track if SweetAlert has been shown
-  const [isEmailsModalOpen, setIsEmailsModalOpen] = useState(false);
-  const [configuredEmails, setConfiguredEmails] = useState([]);
-  const [editEmailData, setEditEmailData] = useState(null);
+  const [newEmail, setNewEmail] = useState("");
+  const [emailError, setEmailError] = useState("");
+  const [isSavingAlarm, setIsSavingAlarm] = useState(false);
+  const [showNotification, setShowNotification] = useState(false);
+  const [notificationMessage, setNotificationMessage] = useState('');
+  const [notificationType, setNotificationType] = useState('success');
 
   const Alert = forwardRef(function Alert(props, ref) {
     return <MuiAlert elevation={6} ref={ref} variant="filled" {...props} />;
@@ -136,44 +245,39 @@ const Alarmas = () => {
     setSnackbarOpen(false);
   };
 
-  // Función para obtener las alarmas
   const fetchAlarms = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem("token");
       if (!token) {
-        setAlertMessage('Token no proporcionado. Por favor, inicie sesión.');
-        setAlertSeverity('error');
+        setAlertMessage("Token no proporcionado. Por favor, inicie sesión.");
+        setAlertSeverity("error");
         setAlertOpen(true);
         return;
       }
-
       const response = await fetch(
         `https://3at9n0fhdi.execute-api.us-east-1.amazonaws.com/alarms?userId=${userId}`,
         {
-          method: 'GET',
+          method: "GET",
           headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
           },
         }
       );
-
       if (!response.ok) {
         const errorData = await response.json();
-        console.error('Error al cargar los datos de alarmas:', errorData);
-        setAlertMessage(`Error: ${errorData.message || 'No se pudieron cargar los datos de alarmas.'}`);
-        setAlertSeverity('error');
+        console.error("Error al cargar los datos de alarmas:", errorData);
+        setAlertMessage(`Error: ${errorData.message || "No se pudieron cargar los datos de alarmas."}`);
+        setAlertSeverity("error");
         setAlertOpen(true);
         return;
       }
-
       const data = await response.json();
-      const { alarms } = data;
-      setAlarms(alarms || []);
+      setAlarms(data.alarms || []);
     } catch (error) {
-      console.error('Error al obtener los datos de alarmas:', error);
-      setAlertMessage('Error al obtener los datos de alarmas');
-      setAlertSeverity('error');
+      console.error("Error al obtener los datos de alarmas:", error);
+      setAlertMessage("Error al obtener los datos de alarmas");
+      setAlertSeverity("error");
       setAlertOpen(true);
     }
   };
@@ -185,119 +289,11 @@ const Alarmas = () => {
   useEffect(() => {
     alarms.forEach((alarm) => {
       if (alarm.topic) {
-        subscribeToTopic(alarm.topic); // Suscribirse al topic de la alarma
+        subscribeToTopic(alarm.topic);
         console.log(`Suscrito al topic: ${alarm.topic}`);
       }
     });
   }, [alarms, subscribeToTopic]);
-
-  useEffect(() => {
-    alarms.forEach((alarm) => {
-      const topicParts = alarm.variable.split("/");
-      const generalTopic = topicParts.slice(0, topicParts.length - 1).join("/") + "/#";
-      subscribeToTopic(generalTopic);
-    });
-  }, [alarms, subscribeToTopic]);
-
-  useEffect(() => {
-    const fetchAlarmData = async () => {
-      if (!userId) {
-        setAlertMessage("El usuario no está logueado.");
-        setAlertSeverity("error");
-        setAlertOpen(true);
-        return;
-      }
-
-      try {
-        const token = localStorage.getItem('token');
-        if (!token) {
-          setAlertMessage('Token no proporcionado. Por favor, inicie sesión.');
-          setAlertSeverity('error');
-          setAlertOpen(true);
-          return;
-        }
-
-        const response = await fetch(
-          `https://3at9n0fhdi.execute-api.us-east-1.amazonaws.com/alarms?userId=${userId}`,
-          {
-            method: 'GET',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-          }
-        );
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          console.error("Error al cargar los datos de alarmas:", errorData);
-          setAlertMessage(`Error: ${errorData.message || 'No se pudieron cargar los datos de alarmas.'}`);
-          setAlertSeverity("error");
-          setAlertOpen(true);
-          return;
-        }
-
-        const data = await response.json();
-        const { alarms } = data;
-        setAlarms(alarms || []);
-      } catch (error) {
-        console.error("Error al obtener los datos de alarmas:", error);
-        setAlertMessage("Error al obtener los datos de alarmas");
-        setAlertSeverity("error");
-        setAlertOpen(true);
-      }
-    };
-
-    fetchAlarmData();
-  }, [userId]);
-
-  // Obtener los topics del usuario
-  useEffect(() => {
-    const fetchTopics = async () => {
-      if (!userId) {
-        setAlertMessage("El usuario no está logueado.");
-        setAlertSeverity("error");
-        setAlertOpen(true);
-        return;
-      }
-
-      try {
-        const token = localStorage.getItem('token');
-        if (!token) {
-          setAlertMessage('Token no proporcionado. Por favor, inicie sesión.');
-          setAlertSeverity('error');
-          setAlertOpen(true);
-          return;
-        }
-
-        const response = await fetch(`${apiBaseUrl}?userId=${userId}`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        });
-        if (!response.ok) {
-          const errorData = await response.json();
-          setAlertMessage(`Error: ${errorData.error || "No se pudieron cargar los topics."}`);
-          setAlertSeverity("error");
-          setAlertOpen(true);
-          return;
-        }
-
-        const data = await response.json();
-        const userTopics = data.devices.map((device) => device.topic);
-        setMqttTopics(userTopics);
-        console.log("Topics obtenidos:", userTopics); // Log para depuración
-      } catch (error) {
-        setAlertMessage("Hubo un error al conectar con el servidor.");
-        setAlertSeverity("error");
-        setAlertOpen(true);
-      }
-    };
-
-    fetchTopics();
-  }, [userId]);
 
   useEffect(() => {
     const fetchDevices = async () => {
@@ -309,15 +305,13 @@ const Alarmas = () => {
           setAlertOpen(true);
           return;
         }
-
         const response = await axios.get(`${apiBaseUrl}?userId=${userId}`, {
           headers: {
             Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
+            "Content-Type": "application/json",
+          },
         });
-
-        console.log('Dispositivos obtenidos:', response.data); // Debug
+        console.log("Dispositivos obtenidos:", response.data);
         setDevices(response.data.devices || []);
       } catch (error) {
         console.error("Error al obtener dispositivos:", error);
@@ -326,13 +320,12 @@ const Alarmas = () => {
         setAlertOpen(true);
       }
     };
-
     fetchDevices();
-  }, []);
+  }, [userId]);
 
   useEffect(() => {
     if (devices && Array.isArray(devices)) {
-      const topics = devices.map(device => device.topic);
+      const topics = devices.map((device) => device.topic);
       setMqttTopics(topics);
     }
   }, [devices]);
@@ -340,43 +333,28 @@ const Alarmas = () => {
   useEffect(() => {
     alarms.forEach((alarm) => {
       if (alarm.deviceId && alarm.subtopic) {
-        const cleanTopic = alarm.deviceId.replace(/#$/, '');
+        const cleanTopic = alarm.deviceId.replace(/#$/, "");
         const topic = `${cleanTopic}${alarm.subtopic}/#`;
-        console.log('Suscribiéndose al topic:', topic);
+        console.log("Suscribiéndose al topic:", topic);
         subscribeToTopic(topic);
       }
     });
   }, [alarms, subscribeToTopic]);
 
-  
   useEffect(() => {
     console.log("Datos MQTT recibidos:", mqttData);
-  }, [mqttData]);
-
-  useEffect(() => {
-    console.log("Datos MQTT recibidos en Alarmas:", mqttData);
-  }, [mqttData]);
-
-  useEffect(() => {
-    console.log("Datos MQTT recibidos:", mqttData);
-  }, [mqttData]);
-
-  // Actualizar la lista de topics MQTT
-  useEffect(() => {
-    if (mqttData && typeof mqttData === 'object') {
-      const topics = Object.keys(mqttData).map(key => key);
-      setMqttTopics(topics);
-    }
-  }, [mqttData]);
-
-  useEffect(() => {
-    const handleMqttData = (topic, message) => {
-      console.log(`Datos recibidos en el topic ${topic}:`, message.toString());
-    };
-
-    if (mqttData) {
-      Object.entries(mqttData).forEach(([topic, message]) => {
-        handleMqttData(topic, message);
+    if (mqttData && Object.keys(mqttData).length > 0) {
+      Object.entries(mqttData).forEach(([topic, data]) => {
+        if (data && data.values) {
+          console.log(`Datos para topic ${topic}:`, {
+            tiempos: data.time,
+            valores: Object.entries(data.values).map(([variable, valores]) => ({
+              variable,
+              valores: valores.slice(-10),
+              ultimoValor: valores[valores.length - 1],
+            })),
+          });
+        }
       });
     }
   }, [mqttData]);
@@ -384,17 +362,17 @@ const Alarmas = () => {
   useEffect(() => {
     const evaluateCondition = (condition, currentValue, threshold) => {
       switch (condition) {
-        case '>':
+        case ">":
           return currentValue > threshold;
-        case '<':
+        case "<":
           return currentValue < threshold;
-        case '==':
+        case "==":
           return currentValue === threshold;
-        case '>=':
+        case ">=":
           return currentValue >= threshold;
-        case '<=':
+        case "<=":
           return currentValue <= threshold;
-        case '!=':
+        case "!=":
           return currentValue !== threshold;
         default:
           return false;
@@ -402,36 +380,25 @@ const Alarmas = () => {
     };
 
     const timers = {};
-
     alarms.forEach((alarm) => {
       const topicData = mqttData[alarm.topic];
       if (topicData) {
         const valuesArray = topicData.values[alarm.variable];
         if (valuesArray && valuesArray.length > 0) {
-          const currentValue = valuesArray[valuesArray.length - 1]; // Último valor del array
-          const thresholdValue = (alarm.value * alarm.threshold) / 100;
-          console.log(`Comparando ${currentValue} con el umbral ${thresholdValue} para la alarma ${alarm.name}`);
-          if (currentValue >= thresholdValue) {
-            console.log(`Alerta: ${alarm.name} ha alcanzado el umbral configurado de ${alarm.threshold}% (${thresholdValue}).`);
-            sendAlertEmail(alarm.name, currentValue, alarm.threshold, alarm.alarmId);
-            setSnackbarMessage(`La alarma ${alarm.name} ha alcanzado el umbral configurado de ${alarm.threshold}% (${thresholdValue}).`);
-            setSnackbarSeverity('warning');
-            setSnackbarOpen(true);
-            setHighlightedAlarms((prev) => [...prev, alarm.alarmId]);
-          }
+          const currentValue = valuesArray[valuesArray.length - 1];
           if (evaluateCondition(alarm.condition, currentValue, alarm.value)) {
             if (!timers[alarm.alarmId]) {
               timers[alarm.alarmId] = setTimeout(() => {
                 console.log(`Alarma activada para ${alarm.name}`);
                 setSnackbarMessage(`La alarma ${alarm.name} ha sido activada.`);
-                setSnackbarSeverity('warning');
+                setSnackbarSeverity("warning");
                 setSnackbarOpen(true);
                 setActiveAlarms((prev) => [...prev, alarm.alarmId]);
+                setHighlightedAlarms((prev) => [...prev, alarm.alarmId]);
                 delete timers[alarm.alarmId];
-              }, alarm.waitTime * 1000); // Convertir segundos a milisegundos
+              }, alarm.waitTime * 1000);
             }
           } else {
-            console.log(`No se cumple la condición para ${alarm.name}`);
             clearTimeout(timers[alarm.alarmId]);
             delete timers[alarm.alarmId];
             setActiveAlarms((prev) => prev.filter((id) => id !== alarm.alarmId));
@@ -440,18 +407,17 @@ const Alarmas = () => {
         }
       }
     });
-
-    return () => {
-      Object.values(timers).forEach(clearTimeout);
-    };
+    return () => Object.values(timers).forEach(clearTimeout);
   }, [mqttData, alarms]);
 
   useEffect(() => {
     if (alarms.length > 0) {
-      const activeAlarmNames = alarms.filter(alarm => highlightedAlarms.includes(alarm.alarmId)).map(alarm => alarm.name);
+      const activeAlarmNames = alarms
+        .filter((alarm) => highlightedAlarms.includes(alarm.alarmId))
+        .map((alarm) => alarm.name);
       if (activeAlarmNames.length > 0) {
-        setSnackbarMessage(`Alarmas activas: ${activeAlarmNames.join(', ')}`);
-        setSnackbarSeverity('warning');
+        setSnackbarMessage(`Alarmas activas: ${activeAlarmNames.join(", ")}`);
+        setSnackbarSeverity("warning");
         setSnackbarOpen(true);
       }
     }
@@ -459,39 +425,6 @@ const Alarmas = () => {
 
   const handleAddAlarm = (newAlarm) => {
     setAlarms((prevAlarms) => [...prevAlarms, newAlarm]);
-  };
-
-  useEffect(() => {
-    fetchAlarms(); // Refrescar las alarmas al montar el componente
-  }, []);
-
-  const evaluateAlarms = (data) => {
-    alarms.forEach((alarm) => {
-      const { variable, condition, value, waitTime, threshold } = alarm;
-      const currentValue = data[variable];
-
-      // Calcular el valor del umbral en base al porcentaje
-      const thresholdValue = (value * threshold) / 100;
-
-      // Mostrar alerta cuando el valor alcanza el umbral
-      if (currentValue >= thresholdValue) {
-        console.log(`Alerta: ${alarm.name} ha alcanzado el umbral configurado de ${threshold}% (${thresholdValue}).`);
-        sendAlertEmail(alarm.name, currentValue, alarm.threshold, alarm.alarmId);
-      }
-
-      // Evaluar si el valor cumple la condición y supera el tiempo configurado
-      if (currentValue >= value) {
-        setTimeout(() => {
-          if (data[variable] >= value) { // Re-evaluar después del tiempo de espera
-            console.log(`Alerta: ${alarm.name} ha superado el valor configurado por ${waitTime} segundos.`);
-          }
-        }, waitTime * 1000); // Convertir waitTime a milisegundos
-      }
-    });
-  };
-
-  const newDataReceived = (data) => {
-    evaluateAlarms(data);
   };
 
   const fetchSubtopics = async () => {
@@ -516,7 +449,7 @@ const Alarmas = () => {
           params: { userId, device_id: device.name },
         }
       );
-      setSubtopics(response.data);
+      setSubtopics(response.data || []);
     } catch (error) {
       console.error("Error al obtener subtopics:", error);
     }
@@ -553,30 +486,45 @@ const Alarmas = () => {
     }
   };
 
-  // Manejar la selección del dispositivo
   const handleDeviceChange = (event) => {
     setSelectedDevice(event.target.value);
     setShowSubtopics(false);
+    setSelectedSubtopic("");
+    setVariables([]);
   };
 
-  // Manejar la selección del subtopic
   const handleSubtopicChange = (event) => {
-    setSelectedSubtopic(event.target.value);
-    setNewAlarm({ ...newAlarm, subtopic: event.target.value });
-    fetchVariables(event.target.value);
+    const subtopic = event.target.value;
+    setSelectedSubtopic(subtopic);
+    setNewAlarm({ ...newAlarm, subtopic });
+    fetchVariables(subtopic);
   };
 
-  // Manejar la apertura del modal
   const handleOpenModal = () => {
     setIsModalOpen(true);
   };
 
-  // Manejar el cierre del modal
   const handleCloseModal = () => {
     setIsModalOpen(false);
+    setNewAlarm({
+      name: "",
+      description: "",
+      subtopic: "",
+      variable: "",
+      condition: "",
+      valueType: "number",
+      value: "",
+      compareVariable: "",
+      severity: "",
+      waitTime: "",
+    });
+    setSelectedDevice("");
+    setSelectedSubtopic("");
+    setVariables([]);
+    setThreshold(50);
+    setEmailRecipients([]);
   };
 
-  // Manejar el cambio del slider
   const handleSliderChange = (event, newValue) => {
     setThreshold(newValue);
   };
@@ -586,77 +534,20 @@ const Alarmas = () => {
     setShowSubtopics(true);
   };
 
-  const handleEditEmail = (emailData) => {
-    console.log("Editando correo:", emailData);
-    setEditEmailData(emailData);
-    setEmailRecipients([emailData.email]);
-    setIsCorreoModalOpen(true);
-  };
-
-  const handleSaveEditedEmail = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const userId = localStorage.getItem('userId');
-
-      if (!token || !userId || !editEmailData) {
-        setAlertMessage('Faltan datos necesarios para actualizar.');
-        setAlertSeverity('error');
-        setAlertOpen(true);
-        return;
-      }
-
-      if (!emailRecipients.length) {
-        setAlertMessage('Seleccione un correo antes de guardar.');
-        setAlertSeverity('error');
-        setAlertOpen(true);
-        return;
-      }
-
-      const requestBody = {
-        userId,
-        email: emailRecipients[0],
-        interval: editEmailData.interval,
-      };
-
-      const response = await fetch('https://3at9n0fhdi.execute-api.us-east-1.amazonaws.com/actuaalarmacorreo', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Error al actualizar el correo:', errorData);
-        setAlertMessage('Error al actualizar el correo.');
-        setAlertSeverity('error');
-        setAlertOpen(true);
-        return;
-      }
-
-      console.log('Correo actualizado exitosamente');
-      setIsCorreoModalOpen(false);
-      fetchConfiguredEmails(); // Refresh the list
-    } catch (error) {
-      console.error('Error al actualizar el correo:', error);
-      setAlertMessage('Error al actualizar el correo.');
-      setAlertSeverity('error');
-      setAlertOpen(true);
-    }
-  };
-
   const handleSaveAlarm = async () => {
+    setIsSavingAlarm(true);
     const device = devices.find((dev) => dev.deviceId === selectedDevice);
     if (!device) {
-      console.error('Dispositivo no encontrado');
+      console.error("Dispositivo no encontrado");
+      setIsSavingAlarm(false);
       return;
     }
-    const cleanTopic = device.topic.replace(/#$/, '');
+
+    const cleanTopic = device.topic.replace(/#$/, "");
     const topicConcatenado = `${cleanTopic}${selectedSubtopic}`;
+
     const alarmData = {
-      userId: userId,
+      userId,
       deviceName: device.name,
       alarmName: newAlarm.name,
       subtopic: selectedSubtopic,
@@ -665,41 +556,38 @@ const Alarmas = () => {
       value: Number(newAlarm.value),
       threshold: Number(threshold),
       topic: topicConcatenado,
-      emailRecipients: emailRecipients, // Include email recipients
+      emailRecipients,
+      waitTime: Number(newAlarm.waitTime) || 30,
     };
-    if (isEditing) {
-      alarmData.alarmId = newAlarm.alarmId;
-    }
+
     try {
-      const response = await fetch('https://3at9n0fhdi.execute-api.us-east-1.amazonaws.com/alarms', {
-        method: 'POST',
-        headers: {
-          'Authorization': localStorage.getItem('token'),
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(alarmData),
-      });
+      const response = await fetch(
+        "https://3at9n0fhdi.execute-api.us-east-1.amazonaws.com/alarms",
+        {
+          method: "POST",
+          headers: {
+            Authorization: localStorage.getItem("token"),
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(alarmData),
+        }
+      );
+
       if (!response.ok) {
-        throw new Error('Error al guardar la alarma');
+        throw new Error("Error al guardar la alarma");
       }
+
       const result = await response.json();
-      console.log('Alarma guardada exitosamente:', result);
-      if (isEditing) {
-        setAlarms((prevAlarms) => {
-          const updatedAlarms = [...prevAlarms];
-          updatedAlarms[editIndex] = { ...newAlarm, ...alarmData };
-          return updatedAlarms;
-        });
-      } else {
-        setAlarms((prevAlarms) => [...prevAlarms, { ...alarmData, alarmId: result.alarmId }]);
-      }
-      setIsModalOpen(false);
-      setIsEditing(false);
-      setEditIndex(null);
+      console.log("Alarma guardada exitosamente:", result);
+      setAlarms((prevAlarms) => [...prevAlarms, { ...alarmData, alarmId: result.alarmId }]);
+      handleCloseModal();
     } catch (error) {
-      console.error('Error al guardar la alarma:', error);
+      console.error("Error al guardar la alarma:", error);
+    } finally {
+      setIsSavingAlarm(false);
     }
   };
+
   const handleOpenDialog = (alarm) => {
     setAlarmToDelete(alarm);
     setOpenDialog(true);
@@ -707,25 +595,25 @@ const Alarmas = () => {
 
   const handleCloseDialog = () => {
     setOpenDialog(false);
-    setConfirmationText('');
+    setConfirmationText("");
   };
 
   const handleDeleteAlarm = async () => {
-    if (confirmationText !== 'confirmar') {
-      setSnackbarMessage('Por favor, escriba "confirmar" para eliminar.');
-      setSnackbarSeverity('error');
+    if (confirmationText !== "confirmar") {
+      setSnackbarMessage("Por favor, escriba 'confirmar' para eliminar.");
+      setSnackbarSeverity("error");
       setSnackbarOpen(true);
       return;
     }
 
     try {
       await deleteAlarm(alarmToDelete.userId, alarmToDelete.alarmId);
-      setSnackbarMessage('Alarma eliminada exitosamente');
-      setSnackbarSeverity('success');
+      setSnackbarMessage("Alarma eliminada exitosamente");
+      setSnackbarSeverity("success");
       setSnackbarOpen(true);
     } catch (error) {
-      setSnackbarMessage('Error al eliminar la alarma');
-      setSnackbarSeverity('error');
+      setSnackbarMessage("Error al eliminar la alarma");
+      setSnackbarSeverity("error");
       setSnackbarOpen(true);
     }
 
@@ -734,313 +622,435 @@ const Alarmas = () => {
 
   const deleteAlarm = async (userId, alarmId) => {
     try {
-      const response = await fetch(`https://3at9n0fhdi.execute-api.us-east-1.amazonaws.com/alarmas?userId=${userId}&alarmId=${alarmId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': localStorage.getItem('token'),
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Error al eliminar la alarma');
-      }
-
-      console.log('Alarma eliminada exitosamente');
-      setAlarms((prevAlarms) => prevAlarms.filter((alarm) => alarm.alarmId !== alarmId));
-    } catch (error) {
-      console.error('Error al eliminar la alarma:', error);
-    }
-  };
-
-  useEffect(() => {
-    if (mqttData) {
-      newDataReceived(mqttData);
-    }
-  }, [mqttData]);
-
-  const handleOpenCorreoModal = () => setIsCorreoModalOpen(true);
-  const handleCloseCorreoModal = () => setIsCorreoModalOpen(false);
-
-  const handleSaveEmails = async (emails, interval) => {
-    if (interval < 60) {
-      setSnackbarMessage('El intervalo mínimo debe ser de 60 segundos');
-      setSnackbarSeverity('error');
-      setSnackbarOpen(true);
-      return;
-    }
-    try {
-      const userId = localStorage.getItem('userId');
-      if (!userId || !emails || emails.length === 0 || !interval) {
-        throw new Error('Faltan campos requeridos: userId, emails, interval');
-      }
-  
-      // Preparar los datos para enviar a la API
-      const requestBody = {
-        userId: userId, // Campo esperado por el backend
-        emails: emails, // Campo esperado por el backend (debe ser un array)
-        interval: interval // Campo esperado por el backend
-      };
-  
-      console.log('Datos enviados a la API:', requestBody);
-  
-      const response = await fetch('https://6zhw53u206.execute-api.us-east-1.amazonaws.com/correo', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': localStorage.getItem('token')
-        },
-        body: JSON.stringify(requestBody)
-      });
-  
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Error del servidor:', errorData);
-        throw new Error('Error al guardar los correos en la base de datos');
-      }
-  
-      const result = await response.json();
-      console.log('Correos guardados exitosamente:', result);
-    } catch (error) {
-      console.error('Error al guardar los correos:', error);
-    }
-  };
-
-  const sendAlertEmail = async (alarmName, currentValue, threshold, alarmId, retryCount = 0) => {
-    const now = Date.now();
-    const lastSent = lastSentTimes[alarmId] || 0;
-
-    if (now - lastSent < 60 * 1000) {
-      console.log('Aún no ha pasado el tiempo suficiente para enviar otra alerta');
-      return;
-    }
-
-    try {
-      setSendingEmails(prev => ({ ...prev, [alarmId]: true }));
-      const userId = localStorage.getItem('userId');
-      console.log('Enviando correo de alerta para:', { userId, alarmName, currentValue, threshold });
-      const response = await fetch('https://6zhw53u206.execute-api.us-east-1.amazonaws.com/alertaemail', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': localStorage.getItem('token'),
-        },
-        body: JSON.stringify({
-          userId,
-          alarmName,
-          currentValue,
-          threshold,
-        }),
-      });
-  
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Error al enviar la alerta por correo:', errorData);
-        setSnackbarMessage('No se pudo enviar la alerta por correo. Por favor, inténtelo de nuevo.');
-        setSnackbarSeverity('error');
-        setSnackbarOpen(true);
-        throw new Error('Error al enviar la alerta por correo');
-      }
-  
-      const result = await response.json();
-      console.log('Correo enviado exitosamente:', result);
-      setLastSentTimes(prev => ({ ...prev, [alarmId]: now }));
-      setSnackbarMessage('La alerta por correo se envió exitosamente.');
-      setSnackbarSeverity('success');
-      setSnackbarOpen(true);
-    } catch (error) {
-      if (retryCount < 3) {
-        const delay = Math.pow(2, retryCount) * 1000;
-        setTimeout(() => {
-          sendAlertEmail(alarmName, currentValue, threshold, alarmId, retryCount + 1);
-        }, delay);
-      }
-      console.error('Error al enviar la alerta por correo:', error);
-      setSnackbarMessage('Hubo un error al enviar la alerta por correo. Por favor, inténtelo de nuevo.');
-      setSnackbarSeverity('error');
-      setSnackbarOpen(true);
-    } finally {
-      setSendingEmails(prev => ({ ...prev, [alarmId]: false }));
-    }
-  };
-
-  useEffect(() => {
-    const evaluateAlarms = () => {
-      alarms.forEach((alarm) => {
-        const topicData = mqttData[alarm.topic];
-        if (topicData) {
-          const valuesArray = topicData.values[alarm.variable];
-          if (valuesArray?.length > 0) {
-            const currentValue = valuesArray[valuesArray.length - 1];
-            const thresholdValue = (alarm.value * alarm.threshold) / 100;
-
-            if (currentValue >= thresholdValue) {
-              sendAlertEmail(alarm.name, currentValue, alarm.threshold, alarm.alarmId);
-            }
-          }
-        }
-      });
-    };
-
-    const interval = setInterval(evaluateAlarms, 5000);
-    return () => clearInterval(interval);
-  }, [mqttData, alarms, lastSentTimes]);
-
-  const handleViewConfiguredEmails = () => {
-    fetchConfiguredEmails();
-  };
-
-  const handleOpenEmailsModal = async () => {
-    await fetchConfiguredEmails();
-    setIsEmailsModalOpen(true);
-  };
-
-  const handleCloseEmailsModal = () => {
-    setIsEmailsModalOpen(false);
-  };
-
-  const handleDeleteEmail = async (email) => {
-    try {
-      const token = localStorage.getItem('token');
-      const userId = localStorage.getItem('userId');
-
-      if (!token || !userId || !email) {
-        setAlertMessage('Faltan datos necesarios para eliminar.');
-        setAlertSeverity('error');
-        setAlertOpen(true);
-        return;
-      }
-
-      console.log(`✅ Eliminando correo: ${email}`);
-
-      const response = await fetch(`https://3at9n0fhdi.execute-api.us-east-1.amazonaws.com/acutacorreo?userId=${userId}&email=${encodeURIComponent(email)}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Error al eliminar el correo:', errorData);
-        setAlertMessage('Error al eliminar el correo.');
-        setAlertSeverity('error');
-        setAlertOpen(true);
-        return;
-      }
-
-      console.log('✅ Correo eliminado exitosamente');
-      fetchConfiguredEmails(); // Refrescar la lista después de eliminar
-    } catch (error) {
-      console.error('Error al eliminar el correo:', error);
-      setAlertMessage('Error al eliminar el correo.');
-      setAlertSeverity('error');
-      setAlertOpen(true);
-    }
-  };
-
-  const fetchConfiguredEmails = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const userId = localStorage.getItem('userId');
-
-      if (!token || !userId) {
-        setAlertMessage('No se encontró token de autenticación');
-        setAlertSeverity('error');
-        setAlertOpen(true);
-        return;
-      }
-
-      console.log(`Fetching emails for userId: ${userId}`);
-
-      const response = await axios.get(
-        `https://3at9n0fhdi.execute-api.us-east-1.amazonaws.com/getalarmasemail?userId=${userId}`, 
+      const response = await fetch(
+        `https://3at9n0fhdi.execute-api.us-east-1.amazonaws.com/alarmas?userId=${userId}&alarmId=${alarmId}`,
         {
+          method: "DELETE",
           headers: {
-            'Authorization': `Bearer ${token}`
-          }
+            Authorization: localStorage.getItem("token"),
+          },
         }
       );
 
-      console.log('Emails response:', response.data);
-
-      // Corregir aquí: La respuesta es el array directo, no hay propiedad 'emails'
-      if (response.data && Array.isArray(response.data)) {
-        setConfiguredEmails(response.data);
-        console.log(`Configured emails set: ${response.data.length} emails`);
-      } else {
-        console.warn('La respuesta no es un array válido');
-        setConfiguredEmails([]);
+      if (!response.ok) {
+        throw new Error("Error al eliminar la alarma");
       }
+
+      setAlarms((prevAlarms) => prevAlarms.filter((alarm) => alarm.alarmId !== alarmId));
     } catch (error) {
-      console.error('Error fetching configured emails:', error);
-      setAlertMessage('No se pudieron cargar los correos configurados');
-      setAlertSeverity('error');
-      setAlertOpen(true);
-      setConfiguredEmails([]);
+      console.error("Error al eliminar la alarma:", error);
     }
   };
 
-  return (
-    <div>
-      <Sidebar />
-      <div style={{ 
-        marginLeft: "250px", 
-        padding: "20px", 
-        maxWidth: "100%", 
-        overflowX: "auto",
-        backgroundColor: '#f5f5f5',
-        minHeight: '100vh'
-      }}>
-        <Box sx={{
-          backgroundColor: 'white',
-          padding: '20px',
+  const fetchActivatedAlarms = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const userId = localStorage.getItem("userId");
+
+      if (!token || !userId) {
+        setAlertMessage("No se encontró token o userId");
+        setAlertSeverity("error");
+        setAlertOpen(true);
+        return;
+      }
+
+      const response = await axios.get(
+        "https://3at9n0fhdi.execute-api.us-east-1.amazonaws.com/leeralertas",
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          params: { userId },
+        }
+      );
+
+      console.log("Activated Alarms:", response.data);
+      setActivatedAlarms(response.data);
+      setOpenActivatedAlarmsModal(true);
+    } catch (error) {
+      console.error("Error al obtener alertas activadas:", error);
+      setAlertMessage("Error al obtener alertas activadas");
+      setAlertSeverity("error");
+      setAlertOpen(true);
+    }
+  };
+
+  const ActivatedAlarmsModal = () => (
+    <Dialog
+      open={openActivatedAlarmsModal}
+      onClose={() => setOpenActivatedAlarmsModal(false)}
+      maxWidth="md"
+      fullWidth
+    >
+      <DialogTitle sx={{ backgroundColor: theme.palette.primary.main, color: "#fff" }}>
+        <Typography variant="h6">Alertas Activadas</Typography>
+      </DialogTitle>
+      <DialogContent>
+        <TableContainer component={Paper} sx={{ borderRadius: "12px" }}>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell sx={{ color: theme.palette.text.secondary, fontWeight: 600 }}>
+                  Dispositivo
+                </TableCell>
+                <TableCell sx={{ color: theme.palette.text.secondary, fontWeight: 600 }}>
+                  Variable
+                </TableCell>
+                <TableCell sx={{ color: theme.palette.text.secondary, fontWeight: 600 }}>
+                  Valor Actual
+                </TableCell>
+                <TableCell sx={{ color: theme.palette.text.secondary, fontWeight: 600 }}>
+                  Fecha
+                </TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {activatedAlarms.length > 0 ? (
+                activatedAlarms.map((alarm) => (
+                  <TableRow
+                    key={alarm.alarmId}
+                    sx={{ "&:hover": { backgroundColor: "rgba(76, 175, 80, 0.05)" } }}
+                  >
+                    <TableCell>{alarm.deviceName}</TableCell>
+                    <TableCell>{alarm.variable}</TableCell>
+                    <TableCell>{alarm.valorActual}</TableCell>
+                    <TableCell>{new Date(alarm.fecha).toLocaleString()}</TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={4} align="center" sx={{ color: theme.palette.text.secondary }}>
+                    No hay alertas activadas
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </DialogContent>
+      <DialogActions>
+        <ActionButton onClick={() => setOpenActivatedAlarmsModal(false)} color="primary">
+          Cerrar
+        </ActionButton>
+      </DialogActions>
+    </Dialog>
+  );
+
+  const handleChangePage = (event, newPage) => {
+    setPage(newPage);
+  };
+
+  const handleChangeRowsPerPage = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
+
+  const isThresholdExceeded = (alarm) => {
+    const topicData = mqttData[alarm.topic];
+    if (!topicData || !topicData.values) return false;
+    const valueArray = topicData.values[alarm.variable];
+    if (!valueArray || valueArray.length === 0) return false;
+    const currentValue = valueArray[valueArray.length - 1];
+    return currentValue !== undefined && evaluateCondition(alarm.condition, currentValue, alarm.value);
+  };
+
+  const getCurrentValue = (alarm) => {
+    const topicData = mqttData[alarm.topic];
+    if (!topicData || !topicData.values) return "N/A";
+    const valueArray = topicData.values[alarm.variable];
+    if (!valueArray || valueArray.length === 0) return "N/A";
+    return valueArray[valueArray.length - 1] !== undefined ? valueArray[valueArray.length - 1] : "N/A";
+  };
+
+  const renderTableRow = (alarm, index) => {
+    const isActive = activeAlarms.includes(alarm.alarmId);
+    const isHighlighted = highlightedAlarms.includes(alarm.alarmId);
+
+    return (
+      <TableRow
+        key={index}
+        sx={{
+          transition: "all 0.3s ease",
+          ...(isHighlighted && {
+            animation: "highlight 2s infinite",
+            "@keyframes highlight": {
+              "0%": { backgroundColor: "rgba(255, 193, 7, 0.1)" },
+              "50%": { backgroundColor: "rgba(255, 193, 7, 0.2)" },
+              "100%": { backgroundColor: "rgba(255, 193, 7, 0.1)" },
+            },
+          }),
+        }}
+      >
+        <TableCell>{alarm.name}</TableCell>
+        <TableCell>{alarm.deviceName}</TableCell>
+        <TableCell>{alarm.subtopic}</TableCell>
+        <TableCell>{alarm.variable}</TableCell>
+        <TableCell>{alarm.condition}</TableCell>
+        <TableCell>{alarm.value}</TableCell>
+        <TableCell>{alarm.waitTime} s</TableCell>
+        <TableCell>{alarm.threshold}%</TableCell>
+        <TableCell>
+          <Box sx={{ display: "flex", gap: 1 }}>
+            <ActionButton
+              size="small"
+              variant="outlined"
+              color="secondary"
+              onClick={() => handleOpenDialog(alarm)}
+              startIcon={<DeleteIcon />}
+            >
+              Eliminar
+            </ActionButton>
+          </Box>
+        </TableCell>
+      </TableRow>
+    );
+  };
+
+  const AlarmNotificationComponent = ({ alarm }) => {
+    const severity = alarm.severity.toLowerCase();
+    const [show, setShow] = useState(true);
+
+    useEffect(() => {
+      const timer = setTimeout(() => {
+        setShow(false);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }, []);
+
+    if (!show) return null;
+
+    return (
+      <AlarmNotification severity={severity}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+          <CircularProgress size={20} sx={{ color: "white" }} />
+          <Box>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+              {alarm.name}
+            </Typography>
+            <Typography variant="body2">{alarm.description}</Typography>
+          </Box>
+        </Box>
+      </AlarmNotification>
+    );
+  };
+
+  const showTemporaryNotification = (message, type = 'success') => {
+    setNotificationMessage(message);
+    setNotificationType(type);
+    setShowNotification(true);
+    setTimeout(() => setShowNotification(false), 3000);
+  };
+
+  const Notification = () => {
+    if (!showNotification) return null;
+
+    return (
+      <div
+        style={{
+          position: 'fixed',
+          bottom: '2rem',
+          right: '2rem',
+          backgroundColor: notificationType === 'success' ? '#059669' : '#DC2626',
+          color: 'white',
+          padding: '1rem 2rem',
           borderRadius: '8px',
-          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-        }}>
-          <Typography variant="h4" sx={{
-            marginBottom: '20px',
-            color: '#333',
-            fontWeight: 'bold',
-            textAlign: 'center'
-          }}>
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem',
+          zIndex: 9999,
+          animation: 'slideIn 0.3s ease-out',
+        }}
+      >
+        {notificationType === 'success' ? (
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M7 10l2 2 4-4" />
+            <circle cx="10" cy="10" r="8" />
+          </svg>
+        ) : (
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="10" cy="10" r="8" />
+            <path d="M10 6v4M10 14h.01" />
+          </svg>
+        )}
+        {notificationMessage}
+      </div>
+    );
+  };
+
+  const handleSaveEmails = async () => {
+    try {
+      const userId = localStorage.getItem("userId");
+      const response = await fetch("https://6zhw53u206.execute-api.us-east-1.amazonaws.com/correo", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: localStorage.getItem("token"),
+        },
+        body: JSON.stringify({ userId, emails: emailRecipients, interval: 30 }),
+      });
+
+      if (!response.ok) throw new Error("Error al guardar los correos");
+
+      const data = await response.json();
+      showTemporaryNotification('Correos guardados exitosamente');
+      setIsCorreoModalOpen(false);
+    } catch (error) {
+      console.error("Error:", error);
+      setAlertMessage("Error al guardar los correos");
+      setAlertSeverity("error");
+      setAlertOpen(true);
+    }
+  };
+
+  const handleDeleteEmail = async (emailToDelete) => {
+    try {
+      const userId = localStorage.getItem("userId");
+      const response = await fetch("https://6zhw53u206.execute-api.us-east-1.amazonaws.com/email", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: localStorage.getItem("token"),
+        },
+        body: JSON.stringify({
+          userId,
+          email: emailToDelete
+        }),
+      });
+
+      if (!response.ok) throw new Error("Error al eliminar el correo");
+
+      setEmailRecipients(prev => prev.filter(email => email !== emailToDelete));
+      showTemporaryNotification('Correo eliminado exitosamente');
+    } catch (error) {
+      console.error("Error:", error);
+      showTemporaryNotification('Error al eliminar el correo', 'error');
+    }
+  };
+
+  useEffect(() => {
+    const fetchEmails = async () => {
+      try {
+        const userId = localStorage.getItem("userId");
+        const response = await fetch(
+          `https://3at9n0fhdi.execute-api.us-east-1.amazonaws.com/getalarmasemail?userId=${userId}`,
+          {
+            headers: {
+              Authorization: localStorage.getItem("token"),
+            },
+          }
+        );
+
+        if (!response.ok) throw new Error("Error al obtener los correos");
+
+        const data = await response.json();
+        if (data && Array.isArray(data)) {
+          // Extraer los correos de cada item
+          const emails = data.map(item => item.email).filter(Boolean);
+          setEmailRecipients(emails);
+        }
+      } catch (error) {
+        console.error("Error al obtener correos:", error);
+      }
+    };
+
+    fetchEmails();
+  }, [isCorreoModalOpen]); // Actualizamos cuando se cierra el modal también
+
+  return (
+    <div style={{ height: "100vh", overflow: "hidden" }}>
+      <Sidebar />
+      <div
+        style={{
+          marginLeft: "250px",
+          padding: "24px",
+          backgroundColor: theme.palette.background.default,
+          minHeight: "calc(100vh - 64px)",
+          overflowY: "auto",
+        }}
+      >
+        <Box
+          sx={{
+            backgroundColor: theme.palette.background.paper,
+            padding: "24px",
+            borderRadius: "12px",
+            boxShadow: "0 4px 12px rgba(0, 0, 0, 0.05)",
+            mb: 4,
+          }}
+        >
+          <Typography variant="h5" sx={{ mb: 2, color: theme.palette.text.primary }}>
             Gestión de Alarmas
           </Typography>
-          <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-            <Button variant="contained" color="primary" startIcon={<AddIcon />} onClick={handleOpenModal}>
+          <Box sx={{ display: "flex", gap: 2, mb: 3, flexWrap: "wrap" }}>
+            <ActionButton
+              variant="contained"
+              color="secondary"
+              startIcon={<VisibilityIcon />}
+              onClick={fetchActivatedAlarms}
+            >
+              Ver Alarmas Activadas
+            </ActionButton>
+            <ActionButton
+              variant="contained"
+              color="secondary"
+              onClick={() => setIsCorreoModalOpen(true)}
+            >
+              Ver o Añadir Correos
+            </ActionButton>
+            <ActionButton
+              variant="contained"
+              color="primary"
+              startIcon={<AddIcon />}
+              onClick={handleOpenModal}
+            >
               Añadir Alarma
-            </Button>
-            <Button variant="contained" color="secondary" startIcon={<EmailIcon />} onClick={handleOpenCorreoModal}>
-              Añadir Correos Remitentes
-            </Button>
-            <Button variant="contained" color="secondary" startIcon={<VisibilityIcon />} onClick={handleOpenEmailsModal}>
-              Ver Correos
-            </Button>
+            </ActionButton>
           </Box>
-          <CorreoAlarmaModal
-            open={isCorreoModalOpen}
-            onClose={handleCloseCorreoModal}
-            onSave={handleSaveEmails}
-            initialEmail={''}
-            initialInterval={''}
+          <StyledTableContainer>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Nombre</TableCell>
+                  <TableCell>Dispositivo</TableCell>
+                  <TableCell>Subtema</TableCell>
+                  <TableCell>Variable</TableCell>
+                  <TableCell>Condición</TableCell>
+                  <TableCell>Valor</TableCell>
+                  <TableCell>Tiempo (s)</TableCell>
+                  <TableCell>Umbral (%)</TableCell>
+                  <TableCell>Acciones</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {alarms
+                  .slice(page * rowsPerPage, (page + 1) * rowsPerPage)
+                  .map((alarm, index) => renderTableRow(alarm, index))}
+              </TableBody>
+            </Table>
+          </StyledTableContainer>
+          <TablePagination
+            rowsPerPageOptions={[10, 25, 100]}
+            component="div"
+            count={alarms.length}
+            rowsPerPage={rowsPerPage}
+            page={page}
+            onPageChange={handleChangePage}
+            onRowsPerPageChange={handleChangeRowsPerPage}
+            sx={{ color: theme.palette.text.secondary }}
           />
-          <Modal open={isModalOpen} onClose={handleCloseModal}>
-            <Box sx={{
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              width: 400,
-              bgcolor: 'background.paper',
-              border: '2px solid #000',
-              boxShadow: 24,
-              p: 4,
-            }}>
-              <Typography variant="h6" component="h2">
-                Añadir Nueva Alarma
-              </Typography>
-              <Typography sx={{ mt: 2 }}>
-                Selecciona un dispositivo:
-              </Typography>
+        </Box>
+        <StyledModal open={isModalOpen} onClose={handleCloseModal}>
+          <Box sx={{ 
+            p: 4, 
+            maxWidth: "500px", 
+            width: "100%", 
+            backgroundColor: "#ffffff" 
+          }}>
+            <DialogTitle>
+              <Typography variant="h6">Añadir Nueva Alarma</Typography>
+            </DialogTitle>
+            <DialogContent>
               <FormControl fullWidth margin="normal">
                 <InputLabel id="device-label">Dispositivo</InputLabel>
                 <Select
@@ -1048,6 +1058,7 @@ const Alarmas = () => {
                   value={selectedDevice}
                   onChange={handleDeviceChange}
                   label="Dispositivo"
+                  sx={{ borderRadius: "8px" }}
                 >
                   {devices.length > 0 ? (
                     devices.map((device) => (
@@ -1060,15 +1071,15 @@ const Alarmas = () => {
                   )}
                 </Select>
               </FormControl>
-              <Button
+              <ActionButton
                 variant="contained"
                 color="primary"
                 onClick={handleFetchSubtopics}
                 disabled={!selectedDevice}
-                startIcon={<AddIcon />}
+                sx={{ mt: 2, mb: 2 }}
               >
                 Buscar Subtemas
-              </Button>
+              </ActionButton>
               {showSubtopics && (
                 <FormControl fullWidth margin="normal">
                   <InputLabel id="subtopic-label">Subtopic</InputLabel>
@@ -1077,9 +1088,12 @@ const Alarmas = () => {
                     value={selectedSubtopic}
                     onChange={handleSubtopicChange}
                     label="Subtopic"
+                    sx={{ borderRadius: "8px" }}
                   >
                     {subtopics.map((subtopic, index) => (
-                      <MenuItem key={index} value={subtopic}>{subtopic}</MenuItem>
+                      <MenuItem key={index} value={subtopic}>
+                        {subtopic}
+                      </MenuItem>
                     ))}
                   </Select>
                 </FormControl>
@@ -1091,9 +1105,12 @@ const Alarmas = () => {
                   value={newAlarm.variable}
                   onChange={(e) => setNewAlarm({ ...newAlarm, variable: e.target.value })}
                   label="Variable"
+                  sx={{ borderRadius: "8px" }}
                 >
                   {variables.map((variable, index) => (
-                    <MenuItem key={index} value={variable}>{variable}</MenuItem>
+                    <MenuItem key={index} value={variable}>
+                      {variable}
+                    </MenuItem>
                   ))}
                 </Select>
               </FormControl>
@@ -1104,6 +1121,7 @@ const Alarmas = () => {
                   value={newAlarm.condition}
                   onChange={(e) => setNewAlarm({ ...newAlarm, condition: e.target.value })}
                   label="Condición"
+                  sx={{ borderRadius: "8px" }}
                 >
                   <MenuItem value=">">Mayor que</MenuItem>
                   <MenuItem value="<">Menor que</MenuItem>
@@ -1113,8 +1131,7 @@ const Alarmas = () => {
                   <MenuItem value="!=">Diferente de</MenuItem>
                 </Select>
               </FormControl>
-            
-              <TextField
+              <FormTextField
                 label="Valor"
                 variant="outlined"
                 fullWidth
@@ -1122,8 +1139,19 @@ const Alarmas = () => {
                 type="number"
                 value={newAlarm.value}
                 onChange={(e) => setNewAlarm({ ...newAlarm, value: e.target.value })}
+                InputProps={{ inputProps: { min: 0 } }}
               />
-              <TextField
+              <FormTextField
+                label="Tiempo de Espera (s)"
+                variant="outlined"
+                fullWidth
+                margin="normal"
+                type="number"
+                value={newAlarm.waitTime}
+                onChange={(e) => setNewAlarm({ ...newAlarm, waitTime: e.target.value })}
+                InputProps={{ inputProps: { min: 0 } }}
+              />
+              <FormTextField
                 label="Nombre de la Alarma"
                 variant="outlined"
                 fullWidth
@@ -1131,139 +1159,172 @@ const Alarmas = () => {
                 value={newAlarm.name}
                 onChange={(e) => setNewAlarm({ ...newAlarm, name: e.target.value })}
               />
-              <Typography gutterBottom>
+              <Typography variant="subtitle1" sx={{ mt: 2, mb: 1, color: theme.palette.text.primary }}>
                 Umbral: {threshold}%
               </Typography>
               <Slider
                 value={threshold}
                 onChange={handleSliderChange}
-                aria-labelledby="continuous-slider"
+                aria-labelledby="threshold-slider"
                 valueLabelDisplay="auto"
                 min={0}
                 max={100}
+                sx={{ color: theme.palette.primary.main }}
               />
-              <Button variant="contained" color="primary" onClick={handleSaveAlarm}>
-                Guardar
-              </Button>
-            </Box>
-          </Modal>
-          <Modal open={isEmailsModalOpen} onClose={handleCloseEmailsModal}>
-            <Box sx={{
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              width: 400,
-              bgcolor: 'background.paper',
-              border: '2px solid #000',
-              boxShadow: 24,
-              p: 4,
-            }}>
-              <Typography variant="h6" component="h2">
-                Correos Configurados
+              <ActionButton
+                variant="contained"
+                color="primary"
+                onClick={handleSaveAlarm}
+                disabled={isSavingAlarm}
+                sx={{ mt: 3, minWidth: "150px" }}
+              >
+                {isSavingAlarm ? <CircularProgress size={24} color="inherit" /> : "Guardar"}
+              </ActionButton>
+            </DialogContent>
+          </Box>
+        </StyledModal>
+        <Dialog open={openDialog} onClose={handleCloseDialog}>
+          <DialogTitle sx={{ backgroundColor: theme.palette.secondary.main, color: "#fff" }}>
+            Confirmar Eliminación
+          </DialogTitle>
+          <DialogContent>
+            <DialogContentText sx={{ color: theme.palette.text.primary }}>
+              Para eliminar la alarma, por favor escriba "confirmar".
+            </DialogContentText>
+            <FormTextField
+              autoFocus
+              margin="dense"
+              label="Confirmar"
+              type="text"
+              fullWidth
+              value={confirmationText}
+              onChange={(e) => setConfirmationText(e.target.value)}
+              sx={{ mt: 2 }}
+            />
+          </DialogContent>
+          <DialogActions>
+            <ActionButton onClick={handleCloseDialog} color="secondary">
+              Cancelar
+            </ActionButton>
+            <ActionButton onClick={handleDeleteAlarm} color="primary">
+              Confirmar
+            </ActionButton>
+          </DialogActions>
+        </Dialog>
+        <Snackbar open={snackbarOpen} autoHideDuration={6000} onClose={handleSnackbarClose}>
+          <Alert onClose={handleSnackbarClose} severity={snackbarSeverity} sx={{ borderRadius: "8px" }}>
+            {snackbarMessage}
+          </Alert>
+        </Snackbar>
+        <ActivatedAlarmsModal />
+        <Dialog
+          open={isCorreoModalOpen}
+          onClose={() => setIsCorreoModalOpen(false)}
+          maxWidth="md"
+          PaperProps={{
+            sx: {
+              borderRadius: '12px',
+              padding: '16px',
+              backgroundColor: theme.palette.background.paper,
+              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
+            }
+          }}
+        >
+          <DialogTitle>
+            <Typography variant="h6" sx={{ color: theme.palette.text.primary }}>
+              Gestionar Correos Electrónicos
+            </Typography>
+          </DialogTitle>
+          <DialogContent>
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="subtitle1" sx={{ mb: 2, color: theme.palette.text.secondary }}>
+                Correos configurados actualmente:
               </Typography>
-              <TableContainer component={Paper}>
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Email</TableCell>
-                      <TableCell>Intervalo</TableCell>
-                      <TableCell>Actions</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {configuredEmails.map((item, index) => (
-                      <TableRow key={index}>
-                        <TableCell>{item.email}</TableCell>
-                        <TableCell>{item.interval}</TableCell>
-                        <TableCell>
-                          <IconButton onClick={() => handleEditEmail(item)}><EditIcon /></IconButton>
-                          <IconButton onClick={() => handleDeleteEmail(item.email)}><DeleteIcon /></IconButton>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                    {configuredEmails.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={3} style={{textAlign: 'center'}}>
-                          No hay correos configurados
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </Box>
-          </Modal>
-          <TableContainer component={Paper}>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Nombre de la Alarma</TableCell>
-                  <TableCell>Dispositivo</TableCell>
-                  <TableCell>Subtema</TableCell>
-                  <TableCell>Variable</TableCell>
-                  <TableCell>Condición</TableCell>
-                  <TableCell>Valor</TableCell>
-                   <TableCell>Umbral(%)</TableCell>
-                  <TableCell>Acciones</TableCell>
-                 </TableRow>
-              </TableHead>
-              <TableBody>
-                {alarms.map((alarm, index) => (
-                  <TableRow key={alarm.alarmId} style={{ backgroundColor: highlightedAlarms.includes(alarm.alarmId) ? 'yellow' : activeAlarms.includes(alarm.alarmId) ? 'red' : 'white' }}>
-                    <TableCell>{alarm.name}</TableCell>
-                    <TableCell>{alarm.deviceName}</TableCell>
-                    <TableCell>{alarm.subtopic}</TableCell>
-                    <TableCell>{alarm.variable}</TableCell>
-                    <TableCell>{alarm.condition}</TableCell>
-                    <TableCell>{alarm.value}</TableCell>
-                     <TableCell>{alarm.threshold}</TableCell>
-                    <TableCell>
-                      {/* <IconButton onClick={() => handleEditAlarm(index)}><EditIcon /></IconButton> */}
-                      <IconButton onClick={() => handleOpenDialog(alarm)}><DeleteIcon /></IconButton>
-                      <Chip 
-                        label={sendingEmails[alarm.alarmId] ? "Enviando..." : "Listo"} 
-                        color={sendingEmails[alarm.alarmId] ? "warning" : "success"}
-                      />
-                    </TableCell>
-                    
-                  </TableRow>
+              <div style={{ 
+                display: 'flex', 
+                flexWrap: 'wrap', 
+                gap: '8px',
+                marginBottom: '16px'
+              }}>
+                {emailRecipients.map((email, index) => (
+                  <Chip
+                    key={index}
+                    label={email}
+                    onDelete={() => handleDeleteEmail(email)}
+                    sx={{
+                      backgroundColor: 'rgba(5, 150, 105, 0.1)',
+                      color: '#059669',
+                      '& .MuiChip-deleteIcon': {
+                        color: '#059669',
+                        '&:hover': {
+                          color: '#047857'
+                        }
+                      }
+                    }}
+                  />
                 ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </Box>
+              </div>
+              <FormTextField
+                fullWidth
+                label="Añadir correo electrónico"
+                variant="outlined"
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+                error={!!emailError}
+                helperText={emailError}
+                sx={{ mt: 2 }}
+              />
+              <Box sx={{ display: 'flex', gap: 2, mt: 3 }}>
+                <ActionButton
+                  variant="contained"
+                  onClick={() => {
+                    if (!newEmail) {
+                      setEmailError('Por favor ingrese un correo');
+                      return;
+                    }
+                    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                    if (!emailRegex.test(newEmail)) {
+                      setEmailError('Correo electrónico inválido');
+                      return;
+                    }
+                    setEmailRecipients([...emailRecipients, newEmail]);
+                    setNewEmail('');
+                    setEmailError('');
+                  }}
+                >
+                  Añadir Correo
+                </ActionButton>
+              </Box>
+            </Box>
+          </DialogContent>
+          <DialogActions>
+            <ActionButton
+              onClick={() => setIsCorreoModalOpen(false)}
+              sx={{
+                color: theme.palette.text.secondary,
+                '&:hover': {
+                  backgroundColor: 'rgba(0, 0, 0, 0.04)'
+                }
+              }}
+            >
+              Cancelar
+            </ActionButton>
+            <ActionButton
+              variant="contained"
+              onClick={handleSaveEmails}
+              sx={{
+                backgroundColor: '#059669',
+                '&:hover': {
+                  backgroundColor: '#047857'
+                }
+              }}
+            >
+              Guardar Correos
+            </ActionButton>
+          </DialogActions>
+        </Dialog>
       </div>
-      <Dialog open={openDialog} onClose={handleCloseDialog}>
-        <DialogTitle>Confirmar Eliminación</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            Para eliminar la alarma, por favor escriba "confirmar".
-          </DialogContentText>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="Confirmar"
-            type="text"
-            fullWidth
-            value={confirmationText}
-            onChange={(e) => setConfirmationText(e.target.value)}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseDialog} color="primary">
-            Cancelar
-          </Button>
-          <Button onClick={handleDeleteAlarm} color="primary">
-            Confirmar
-          </Button>
-        </DialogActions>
-      </Dialog>
-      <Snackbar open={snackbarOpen} autoHideDuration={6000} onClose={handleSnackbarClose}>
-        <Alert onClose={handleSnackbarClose} severity={snackbarSeverity}>
-          {snackbarMessage}
-        </Alert>
-      </Snackbar>
+      <Notification />
     </div>
   );
 };

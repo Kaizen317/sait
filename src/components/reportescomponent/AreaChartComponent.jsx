@@ -1,20 +1,16 @@
-import React from "react";
-import { Bar } from "react-chartjs-2";
-import PropTypes from "prop-types";
-import "chart.js/auto";
+import React from 'react';
+import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler } from 'chart.js';
+import { Line } from 'react-chartjs-2';
+import PropTypes from 'prop-types';
 import 'chartjs-adapter-date-fns';
 import { es } from 'date-fns/locale';
 
 // Desactivar las etiquetas de datos globalmente para este tipo de gráfico
-import { Chart as ChartJS } from 'chart.js';
 ChartJS.defaults.plugins.datalabels = { display: false };
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
 
-const BarChartComponent = ({ 
-  data, 
-  title,
-  showTitle = true 
-}) => {
-  console.log("Datos recibidos en BarChartComponent:", data);
+const AreaChartComponent = ({ data, title, showTitle = true }) => {
+  console.log("Datos recibidos en AreaChartComponent:", data);
 
   if (!data || !data.labels || !data.datasets) {
     return <div>No hay datos disponibles para mostrar.</div>;
@@ -28,6 +24,7 @@ const BarChartComponent = ({
         if (isNaN(date.getTime())) {
           return label;
         }
+        // Formato completo para las etiquetas según preferencia del usuario
         return date.toLocaleString('es-ES', {
           day: '2-digit',
           month: '2-digit',
@@ -42,38 +39,18 @@ const BarChartComponent = ({
       }
     }),
     datasets: data.datasets.map((dataset, index) => {
-      // Definir colores más oscuros para cada dataset
-      let backgroundColor;
-      let borderColor;
-      
-      if (dataset.backgroundColor) {
-        backgroundColor = dataset.backgroundColor;
-      } else {
-        // Usar colores predefinidos más oscuros según el índice
-        switch (index % 3) {
-          case 0:
-            backgroundColor = 'rgba(54, 162, 235, 1)'; // Azul sin opacidad
-            borderColor = 'rgba(25, 118, 210, 1)';
-            break;
-          case 1:
-            backgroundColor = 'rgba(75, 192, 192, 1)'; // Verde sin opacidad
-            borderColor = 'rgba(46, 139, 87, 1)';
-            break;
-          case 2:
-            backgroundColor = 'rgba(255, 159, 64, 1)'; // Naranja sin opacidad
-            borderColor = 'rgba(230, 126, 34, 1)';
-            break;
-          default:
-            backgroundColor = 'rgba(54, 162, 235, 1)';
-            borderColor = 'rgba(25, 118, 210, 1)';
-        }
-      }
+      console.log("Dataset recibido en AreaChartComponent:", dataset); // Para depuración
       
       return {
         ...dataset,
-        backgroundColor: backgroundColor,
-        borderColor: dataset.borderColor || borderColor,
-        borderWidth: 1,
+        fill: true, // Esto hace que sea un gráfico de área
+        // Usar los colores del dataset si existen, de lo contrario usar colores predeterminados
+        backgroundColor: dataset.backgroundColor || `rgba(${index === 0 ? '75, 192, 192' : index === 1 ? '54, 162, 235' : '255, 159, 64'}, 0.2)`,
+        borderColor: dataset.borderColor || `rgba(${index === 0 ? '75, 192, 192' : index === 1 ? '54, 162, 235' : '255, 159, 64'}, 1)`,
+        borderWidth: 3,
+        pointRadius: 4,
+        pointHoverRadius: 7,
+        tension: 0.2,
         // Desactivar las etiquetas de datos para este dataset específico
         datalabels: {
           display: false
@@ -111,30 +88,32 @@ const BarChartComponent = ({
         </h3>
       )}
 
-      <Bar
+      <Line
         data={chartData}
         options={{
           responsive: true,
           maintainAspectRatio: false,
+          aspectRatio: 2.5, // Hacer el gráfico más ancho que alto
           plugins: {
             legend: {
               position: 'top',
               labels: {
-                boxWidth: 12,
-                padding: 15,
+                boxWidth: 15,
+                padding: 20,
                 font: {
-                  size: 12
+                  size: 13,
+                  weight: 'bold'
                 }
               }
             },
             tooltip: {
-              backgroundColor: 'rgba(255, 255, 255, 0.9)',
+              backgroundColor: 'rgba(255, 255, 255, 0.95)',
               titleColor: '#333',
               bodyColor: '#666',
               borderColor: '#ccc',
               borderWidth: 1,
-              padding: 10,
-              boxPadding: 3,
+              padding: 12,
+              boxPadding: 5,
               cornerRadius: 4,
               titleFont: {
                 size: 14,
@@ -146,10 +125,10 @@ const BarChartComponent = ({
               callbacks: {
                 title: function(tooltipItems) {
                   const item = tooltipItems[0];
-                  const label = item.label;
+                  const index = item.dataIndex;
                   try {
-                    // Si es una fecha en formato ISO, la formateamos
-                    const date = new Date(label);
+                    // Mostrar la fecha completa en el tooltip
+                    const date = new Date(data.labels[index]);
                     if (!isNaN(date.getTime())) {
                       return date.toLocaleString('es-ES', {
                         day: '2-digit',
@@ -164,7 +143,7 @@ const BarChartComponent = ({
                   } catch (e) {
                     // Si hay error, devolvemos el label original
                   }
-                  return label;
+                  return item.label;
                 }
               }
             },
@@ -178,9 +157,12 @@ const BarChartComponent = ({
               ticks: {
                 maxRotation: 45,
                 minRotation: 45,
-                padding: 10,
+                padding: 15,
+                autoSkip: true,
+                maxTicksLimit: 8,
                 font: {
-                  size: 12
+                  size: 12,
+                  weight: 'bold'
                 },
                 color: '#666',
                 callback: function(value, index, ticks) {
@@ -202,9 +184,10 @@ const BarChartComponent = ({
             y: {
               beginAtZero: true,
               ticks: {
-                padding: 10,
+                padding: 15,
                 font: {
-                  size: 12
+                  size: 12,
+                  weight: 'bold'
                 },
                 color: '#666',
                 callback: function(value) {
@@ -219,20 +202,16 @@ const BarChartComponent = ({
               }
             }
           },
-          animation: {
-            duration: 1000
-          },
-          layout: {
-            padding: {
-              top: 5,
-              right: 15,
-              bottom: 5,
-              left: 15
-            }
-          },
           elements: {
-            bar: {
-              borderRadius: 4
+            line: {
+              tension: 0.2 // Suaviza las líneas
+            },
+            point: {
+              // Configuración adicional para los puntos
+              radius: 4,
+              hoverRadius: 7,
+              // Desactivar las etiquetas en los puntos
+              drawLabels: false
             }
           }
         }}
@@ -241,10 +220,10 @@ const BarChartComponent = ({
   );
 };
 
-BarChartComponent.propTypes = {
+AreaChartComponent.propTypes = {
   data: PropTypes.object,
   title: PropTypes.string,
   showTitle: PropTypes.bool
 };
 
-export default BarChartComponent;
+export default AreaChartComponent;

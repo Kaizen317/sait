@@ -1,0 +1,101 @@
+.dashboard-container {
+  padding: 16px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.dashboard-header {
+  margin-bottom: 24px;
+}
+
+.subdashboard-buttons {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.dashboard-card {
+  height: 100%;
+  transition: all 0.3s ease;
+}
+
+.dashboard-card-content {
+  height: calc(100% - 64px);
+  overflow: auto;
+}
+
+.chart-container {
+  width: 100%;
+  height: 100%;
+  min-height: 300px;
+  position: relative;
+}
+
+/* Media queries para dispositivos móviles */
+@media screen and (max-width: 600px) {
+  .dashboard-container {
+    padding: 8px;
+    margin-left: 0;
+  }
+
+  .subdashboard-buttons {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .dashboard-card {
+    margin-bottom: 16px;
+  }
+
+  .chart-container {
+    min-height: 200px;
+  }
+
+  /* Ajustar tamaño de fuente para móviles */
+  .dashboard-card h6 {
+    font-size: 1rem !important;
+  }
+}
+
+/* Media queries para tablets */
+@media screen and (min-width: 601px) and (max-width: 960px) {
+  .dashboard-container {
+    padding: 12px;
+  }
+
+  .subdashboard-buttons {
+    gap: 12px;
+  }
+
+  .chart-container {
+    min-height: 250px;
+  }
+
+  .dashboard-card {
+    margin-bottom: 20px;
+  }
+}
+
+/* Animaciones para las cards */
+.dashboard-card {
+  animation: fadeIn 0.5s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Estilos para mejorar la visualización de gráficos en móviles */
+@media screen and (max-width: 600px) {
+  canvas {
+    max-height: 300px !important;
+  }
+}

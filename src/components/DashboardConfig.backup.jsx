@@ -32,7 +32,7 @@ import {
 import ChartConfigModal from "./ChartConfigModal";
 import LineChartComponent from "./LineChartComponent";
 import BarChartComponent from "./BarChartComponent";
- import PieChartComponent from "./PieChartComponent";
+import PieChartComponent from "./PieChartComponent";
 import DoughnutChartComponent from "./DoughnutChartComponent";
 import GaugeChartComponent from "./GaugeChartComponent";
 import ValueCardComponent from "./ValueCardComponent";
@@ -48,9 +48,6 @@ import StackedBarChartComponent from "./StackedBarChartComponent";
 import BarHistorico from "./BarHistorico";
 import LineHistorico from "./LineHistorico";
 import PieHistorico from "./PieHistorico"; // Importar PieHistorico
-import AreaHistorico from "./AreaHistorico"; // Importar AreaHistorico
-import StackedBarHistorico from "./StackedBarHistorico"; // Importar StackedBarHistorico
-import FormulaComponent from "./FormulaComponent"; // Importar el nuevo componente de fórmula
 import "chartjs-adapter-date-fns";
 
 // Paleta de colores profesional y sobria
@@ -468,44 +465,26 @@ const DashboardConfig = () => {
           name: sub.name?.trim() || "Subdashboard sin nombre",
           color: sub.color || "#FFFFFF"
         })),
-        components: components.map((comp) => {
-          // Crear un objeto base con las propiedades comunes
-          const componentData = {
-            subdashboardId: comp.subdashboardId?.toString(),
-            chartType: comp.chartType || "Sin tipo de gráfico",
-            componentName: comp.componentName?.trim() || "Componente sin nombre",
-            variables: (comp.variables || []).map((variable) => {
-              const segments = variable.variable.split("/");
-              const topic = segments.slice(0, segments.length - 1).join("/");
-              const subtopic = segments[segments.length - 1];
-              return {
-                variable: variable.variable?.trim() || "Variable sin nombre",
-                topic: topic || "Sin topic",
-                subtopic: subtopic || "Sin subtopic",
-                value: variable.value || "Sin value",
-                color: variable.color || "#000000",
-                type: variable.type || "bar" // Añadimos el campo type
-              };
-            }),
-            colSize: comp.colSize || "col6",
-            height: typeof comp.height === "number" ? comp.height : 400
-          };
-          
-          // Añadir propiedades específicas para el componente de fórmula
-          if (comp.chartType === "FormulaComponent") {
-            componentData.formula = comp.formula || "";
-            componentData.formulaDisplayType = comp.formulaDisplayType || "number";
-            componentData.formulaUnit = comp.formulaUnit || "";
-            
-            // Añadir propiedades específicas para el tipo gauge
-            if (comp.formulaDisplayType === "gauge") {
-              componentData.formulaMin = comp.formulaMin !== undefined ? comp.formulaMin : 0;
-              componentData.formulaMax = comp.formulaMax !== undefined ? comp.formulaMax : 100;
-            }
-          }
-          
-          return componentData;
-        })
+        components: components.map((comp) => ({
+          subdashboardId: comp.subdashboardId?.toString(),
+          chartType: comp.chartType || "Sin tipo de gráfico",
+          componentName: comp.componentName?.trim() || "Componente sin nombre",
+          variables: (comp.variables || []).map((variable) => {
+            const segments = variable.variable.split("/");
+            const topic = segments.slice(0, segments.length - 1).join("/");
+            const subtopic = segments[segments.length - 1];
+            return {
+              variable: variable.variable?.trim() || "Variable sin nombre",
+              topic: topic || "Sin topic",
+              subtopic: subtopic || "Sin subtopic",
+              value: variable.value || "Sin value",
+              color: variable.color || "#000000",
+              type: variable.type || "bar" // Añadimos el campo type
+            };
+          }),
+          colSize: comp.colSize || "col6",
+          height: typeof comp.height === "number" ? comp.height : 400
+        }))
       };
       const response = await fetch(
         "https://5kkoyuzfrf.execute-api.us-east-1.amazonaws.com/dashboards",
@@ -799,78 +778,6 @@ const DashboardConfig = () => {
         ]
       };
     }
-    if (component.chartType === "AreaHistorico") {
-      const labels = [];
-      const values = [];
-      const colors = [];
-      const borderColors = [];
-      
-      // Usar la misma lógica que para BarHistorico y LineHistorico
-      let datasets = [];
-      if (component.variables && component.variables.length > 0) {
-        datasets = component.variables.map((variable) => {
-          return {
-            label: variable.value || "Sin nombre",
-            data: [],
-            backgroundColor: `${variable.color}80`, // Color con transparencia para el área
-            borderColor: variable.color || "#3b82f6",
-            borderWidth: 2,
-            fill: true,
-          };
-        });
-      }
-      
-      return {
-        labels: [],
-        datasets: datasets
-      };
-    }
-    if (component.chartType === "StackedBarHistorico") {
-      const labels = [];
-      const values = [];
-      const colors = [];
-      const borderColors = [];
-      
-      // Usar la misma lógica que para BarHistorico y LineHistorico
-      let datasets = [];
-      if (component.variables && component.variables.length > 0) {
-        datasets = component.variables.map((variable) => {
-          return {
-            label: variable.value || "Sin nombre",
-            data: [],
-            backgroundColor: `${variable.color}80`, // Color con transparencia para el área
-            borderColor: variable.color || "#3b82f6",
-            borderWidth: 2,
-          };
-        });
-      }
-      
-      return {
-        labels: [],
-        datasets: datasets
-      };
-    }
-    if (component.chartType === "FormulaComponent") {
-      const variablesData = component.variables
-        .map((variable) => {
-          const topic = variable.variable;
-          const valueKey = variable.value;
-          const topicData = mqttData[topic];
-          if (topicData?.values && topicData.values[valueKey] !== undefined) {
-            const values = Array.isArray(topicData.values[valueKey])
-              ? topicData.values[valueKey]
-              : [topicData.values[valueKey]];
-            return {
-              value: valueKey,
-              data: values,
-              backgroundColor: variable.backgroundColor || variable.color || "#fff"
-            };
-          }
-          return null;
-        })
-        .filter(Boolean);
-      return variablesData;
-    }
     return { labels: [], datasets: [] };
   };
 
@@ -1004,31 +911,6 @@ const DashboardConfig = () => {
                   title={component.componentName}
                   fetchHistoricalData={fetchHistoricalData}
                   variables={component.variables || []}
-                  height={height}
-                />
-              )}
-              {component.chartType === "AreaHistorico" && (
-                <AreaHistorico
-                  userId={userId}
-                  title={component.componentName}
-                  fetchHistoricalData={fetchHistoricalData}
-                  variables={component.variables || []}
-                  height={height}
-                />
-              )}
-              {component.chartType === "StackedBarHistorico" && (
-                <StackedBarHistorico
-                  userId={userId}
-                  title={component.componentName}
-                  fetchHistoricalData={fetchHistoricalData}
-                  variables={component.variables || []}
-                  height={height}
-                />
-              )}
-              {component.chartType === "FormulaComponent" && (
-                <FormulaComponent
-                  userId={userId}
-                  componentData={component}
                   height={height}
                 />
               )}
@@ -1589,4 +1471,4 @@ const DashboardConfig = () => {
   );
 };
 
-export { DashboardConfig };
+export default DashboardConfig;

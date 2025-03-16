@@ -2,7 +2,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import mqtt from "mqtt";
 import { MqttContext } from "./MqttContext";
-import axios from "axios";
 
 /**
  * MqttProvider
@@ -16,49 +15,30 @@ const MqttProvider = ({ userId, children }) => {
     return stored ? JSON.parse(stored) : {};
   });
 
-  // Estado para controlar si los datos iniciales se han cargado
-  const [initialDataLoaded, setInitialDataLoaded] = useState(false);
-
   // Mapa deviceId => mqtt.Client
   const clientsRef = useRef(new Map());
-
-  // Estado para controlar si estamos conectados
-  const [isConnecting, setIsConnecting] = useState(false);
 
   /**
    * Efecto que se ejecuta cada vez que userId cambie.
    * Si userId existe, conecta a los dispositivos.
    */
   useEffect(() => {
-    const storedUserId = localStorage.getItem("userId");
-    const effectiveUserId = userId || storedUserId;
-
-    if (!effectiveUserId) {
-      console.log("[MQTT] No userId disponible => no se conectan dispositivos.");
+    if (!userId) {
+      console.log("[MQTT] No userId => no se conectan dispositivos.");
       return;
     }
-
-    if (isConnecting) {
-      console.log("[MQTT] Ya hay una conexión en proceso...");
-      return;
-    }
-
-    console.log("[MQTT] Iniciando conexión con userId:", effectiveUserId);
-    setIsConnecting(true);
+    console.log("[MQTT] userId detectado:", userId);
 
     const fetchDevicesAndConnect = async () => {
       try {
         const devicesRes = await fetch(
-          `https://z9tss4i6we.execute-api.us-east-1.amazonaws.com/devices?userId=${effectiveUserId}`
+          `https://z9tss4i6we.execute-api.us-east-1.amazonaws.com/devices?userId=${userId}`
         );
         if (!devicesRes.ok) {
           throw new Error("[FETCH] Error al obtener dispositivos");
         }
         const { devices } = await devicesRes.json();
         console.log("[MQTT] Dispositivos obtenidos:", devices);
-
-        // Recopilar todos los tópicos para cargar datos iniciales
-        const allTopics = [];
 
         for (const device of devices) {
           if (clientsRef.current.has(device.deviceId)) {
@@ -68,7 +48,7 @@ const MqttProvider = ({ userId, children }) => {
 
           try {
             const subtopicsRes = await fetch(
-              `https://qoxkrbn8z1.execute-api.us-east-1.amazonaws.com/mqtttopic?userId=${effectiveUserId}&deviceName=${device.name}`
+              `https://qoxkrbn8z1.execute-api.us-east-1.amazonaws.com/mqtttopic?userId=${userId}&deviceName=${device.name}`
             );
             const { topics = [] } = await subtopicsRes.json();
 
@@ -82,16 +62,6 @@ const MqttProvider = ({ userId, children }) => {
               clientId: device.deviceId,
               username: device.username,
               password: device.password ? "••••••" : "undefined",
-            });
-
-            // Recopilar tópicos para cargar datos iniciales
-            topics.forEach(topic => {
-              const parts = topic.split('/');
-              if (parts.length >= 4) {
-                const deviceId = parts[parts.length - 2];
-                const subtopic = parts[parts.length - 1];
-                allTopics.push({ device_id: deviceId, subtopic });
-              }
             });
 
             // Crear cliente MQTT
@@ -110,16 +80,8 @@ const MqttProvider = ({ userId, children }) => {
             console.error(`[INIT ERR] ${device.name}:`, err);
           }
         }
-
-        // Cargar datos iniciales para todos los tópicos recopilados
-        if (allTopics.length > 0) {
-          console.log("[INITIAL DATA] Omitiendo carga de datos iniciales para evitar error CORS");
-          setInitialDataLoaded(true);
-        }
       } catch (err) {
         console.error("[FETCH]:", err);
-      } finally {
-        setIsConnecting(false);
       }
     };
 
@@ -210,13 +172,11 @@ const MqttProvider = ({ userId, children }) => {
 
       const newValues = {};
       if (parsed.payload) {
-        console.log(` Nuevo mensaje MQTT para ${topic}:`, parsed.payload);
         Object.entries(parsed.payload).forEach(([key, val]) => {
           const oldArr = prevData.values[key] || [];
           newValues[key] = [...oldArr.slice(-9), val];
         });
       } else {
-        console.log(` Nuevo mensaje MQTT (formato alternativo) para ${topic}:`, parsed);
         const oldMsgArr = prevData.values["message"] || [];
         newValues["message"] = [...oldMsgArr.slice(-9), parsed];
       }
@@ -234,11 +194,7 @@ const MqttProvider = ({ userId, children }) => {
         [topic]: newTopicData,
       };
 
-      // Guardar en localStorage
       localStorage.setItem("mqttData", JSON.stringify(newState));
-      
-      console.log(` Estado MQTT actualizado para ${topic}`);
-      
       return newState;
     });
   };
@@ -298,10 +254,11 @@ const MqttProvider = ({ userId, children }) => {
   };
 
   return (
-    <MqttContext.Provider value={{ mqttData, subscribeToTopic, getLatestValues, userId, initialDataLoaded }}>
+    <MqttContext.Provider value={{ mqttData, subscribeToTopic, getLatestValues, userId }}>
       {children}
     </MqttContext.Provider>
   );
+  
 };
 
 export default MqttProvider;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useContext, useRef } from "react";
 import {
   Button,
   TextField,
@@ -14,134 +14,169 @@ import {
   Tooltip,
   CircularProgress,
 } from "@mui/material";
-import { Line } from "react-chartjs-2";
+import { Bar } from "react-chartjs-2";
 import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
-  PointElement,
-  LineElement,
+  BarElement,
   Title,
   Tooltip as ChartTooltip,
   Legend,
 } from "chart.js";
-import ChartDataLabels from 'chartjs-plugin-datalabels';
+import ChartDataLabels from "chartjs-plugin-datalabels";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import InfoIcon from "@mui/icons-material/Info";
 import PropTypes from "prop-types";
+import { MqttContext } from "./MqttContext";
 
 // Registrar componentes de Chart.js
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, ChartTooltip, Legend, ChartDataLabels);
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  ChartTooltip,
+  Legend,
+  ChartDataLabels
+);
 
-// Función auxiliar para convertir colores hex a rgba
-const hexToRgba = (hex, alpha = 1) => {
-  try {
-    if (!hex) return `rgba(0, 0, 0, ${alpha})`;
-    const r = parseInt(hex.slice(1, 3), 16);
-    const g = parseInt(hex.slice(3, 5), 16);
-    const b = parseInt(hex.slice(5, 7), 16);
-    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-  } catch (e) {
-    console.error("Error al convertir color:", e);
-    return hex;
-  }
-};
-
-const LineHistorico = ({ userId, title, variables = [], fetchHistoricalData, height }) => {
+const StackedBarHistorico = ({ userId, title, variables, fetchHistoricalData, height }) => {
+  const { mqttData } = useContext(MqttContext);
+  const chartRef = useRef(null);
+  
+  // Estados
   const [filter, setFilter] = useState("1D");
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [startDate, setStartDate] = useState("");
-  const [startTime, setStartTime] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [endTime, setEndTime] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [data, setData] = useState(null);
-  const chartRef = useRef(null);
+  const [startTime, setStartTime] = useState("00:00");
+  const [endTime, setEndTime] = useState("23:59");
 
-  const fetchData = async (currentFilter = filter) => {
+  // Efecto para inicializar fechas
+  useEffect(() => {
+    const today = new Date();
+    const formattedDate = today.toISOString().split("T")[0];
+    setStartDate(formattedDate);
+    setEndDate(formattedDate);
+  }, []);
+
+  // Efecto para cargar datos al cambiar filtro o variables
+  useEffect(() => {
+    if (variables && variables.length > 0) {
+      fetchData();
+    }
+  }, [filter, variables, userId]);
+
+  // Función para manejar el cambio de filtro
+  const handleFilterClick = (newFilter) => {
+    setFilter(newFilter);
+    setShowDatePicker(false);
+    setError(null); // Resetear el error al cambiar de filtro
+  };
+
+  // Función para aplicar filtro personalizado
+  const handleCustomFilter = () => {
+    if (startDate && endDate) {
+      setFilter("custom");
+      setShowDatePicker(false);
+      fetchData();
+    }
+  };
+
+  // Función para obtener datos históricos
+  const fetchData = async () => {
+    if (!variables || variables.length === 0) {
+      setData(null);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setError(null);
+
     try {
       let startDateTime = null;
       let endDateTime = null;
 
-      // Solo usar fechas personalizadas si el filtro es "custom"
-      if (currentFilter === "custom") {
-        if (startDate) {
-          startDateTime = startTime ? `${startDate}T${startTime}:00.000Z` : `${startDate}T00:00:00.000Z`;
-        }
-
-        if (endDate) {
-          endDateTime = endTime ? `${endDate}T${endTime}:00.000Z` : `${endDate}T23:59:59.999Z`;
-        }
-      } else {
-        // Para filtros predefinidos, no enviar fechas personalizadas
-        startDateTime = null;
-        endDateTime = null;
+      if (filter === "custom" && startDate && endDate) {
+        startDateTime = startTime ? `${startDate}T${startTime}:00.000Z` : `${startDate}T00:00:00.000Z`;
+        endDateTime = endTime ? `${endDate}T${endTime}:00.000Z` : `${endDate}T23:59:59.999Z`;
       }
 
-      const historicalData = await fetchHistoricalData(userId, variables, currentFilter, startDateTime, endDateTime);
-      console.log("Datos históricos recibidos:", historicalData);
+      console.log("Solicitando datos históricos con:", { userId, variables, filter, startDateTime, endDateTime });
+      const historicalData = await fetchHistoricalData(userId, variables, filter, startDateTime, endDateTime);
+      console.log("Datos históricos recibidos en StackedBarHistorico:", historicalData);
 
       if (!historicalData || historicalData.length === 0) {
-        setData(null);
         setError("No hay datos disponibles para el período seleccionado");
+        setData({
+          labels: [],
+          datasets: [],
+        });
+        setLoading(false);
         return;
       }
 
       setData({
         labels: historicalData.map((item) => new Date(item.timestamp).toLocaleString()),
-        datasets: variables.map((variable, index) => ({
-          label: variable.value,
-          data: historicalData.map((item) => item.values[variable.value] || 0),
-          backgroundColor: hexToRgba(variable.color, 0.7),
-          borderColor: variable.color,
-          borderWidth: 2,
-          pointRadius: 4, // Añadido para puntos visibles como en la imagen
-          pointHoverRadius: 6,
-        })),
+        datasets: variables
+          .slice() // Crear una copia para no modificar el array original
+          .sort((a, b) => {
+            // Calcular el valor promedio de cada variable para ordenarlas
+            const avgA = historicalData.reduce((sum, item) => sum + (item.values[a.value] || 0), 0) / historicalData.length;
+            const avgB = historicalData.reduce((sum, item) => sum + (item.values[b.value] || 0), 0) / historicalData.length;
+            // Ordenar de mayor a menor para que los valores más grandes estén en la base
+            return avgB - avgA;
+          })
+          .map((variable, index) => ({
+            label: variable.value,
+            data: historicalData.map((item) => item.values[variable.value] || 0),
+            backgroundColor: variable.color,
+            borderColor: variable.color,
+            borderWidth: 1,
+            stack: 'stack1', // Todos los datasets se apilan en el mismo grupo
+          })),
       });
-    } catch (error) {
-      console.error("Error al cargar datos históricos:", error);
-      setError("Error al cargar los datos históricos");
+    } catch (err) {
+      console.error("Error al cargar datos históricos:", err);
+      setError("Error al cargar los datos históricos. Por favor, inténtalo de nuevo.");
     } finally {
       setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, [filter]);
-
-  const handleFilterClick = (newFilter) => {
-    // Reiniciar fechas personalizadas cuando se cambia a filtros predefinidos
-    if (newFilter !== "custom") {
-      setStartDate("");
-      setStartTime("");
-      setEndDate("");
-      setEndTime("");
-    }
-    setFilter(newFilter);
-    setShowDatePicker(false);
-    setError(null); // Reiniciar el error al cambiar de filtro
-    // No llamamos a fetchData aquí porque ya se llamará en el useEffect
-  };
-
-  const handleCustomFilter = () => {
-    if (startDate && endDate) {
-      setFilter("custom");
-      setError(null); // Reiniciar el error al aplicar filtro personalizado
-      // Forzar la actualización de los datos inmediatamente en lugar de esperar al useEffect
-      // ya que el cambio de estado de setFilter puede no reflejarse inmediatamente
-      fetchData("custom");
     }
   };
 
   const options = {
     responsive: true,
     maintainAspectRatio: false,
+    scales: {
+      x: {
+        stacked: true, // Apila las barras horizontalmente
+        grid: {
+          display: true,
+          color: "rgba(0, 0, 0, 0.05)",
+        },
+        ticks: {
+          maxRotation: 45,
+          minRotation: 45,
+          font: {
+            size: 10,
+          },
+        },
+      },
+      y: {
+        stacked: true, // Apila las barras verticalmente
+        grid: {
+          display: true,
+          color: "rgba(0, 0, 0, 0.05)",
+        },
+        beginAtZero: true,
+      },
+    },
     plugins: {
       legend: {
         position: "top",
@@ -177,7 +212,9 @@ const LineHistorico = ({ userId, title, variables = [], fetchHistoricalData, hei
         boxPadding: 6,
         usePointStyle: true,
         callbacks: {
-          title: (context) => context[0].label,
+          title: (context) => {
+            return context[0].label;
+          },
           label: (context) => {
             const label = context.dataset.label || "";
             const value = context.parsed.y;
@@ -189,84 +226,13 @@ const LineHistorico = ({ userId, title, variables = [], fetchHistoricalData, hei
         display: false,
       },
     },
-    scales: {
-      x: {
-        grid: {
-          display: false,
-          drawBorder: false,
-        },
-        ticks: {
-          font: {
-            size: 11,
-            family: "'Roboto', 'Helvetica', 'Arial', sans-serif",
-          },
-          color: "#666",
-          maxRotation: 90,
-          minRotation: 45,
-          autoSkip: true,
-          maxTicksLimit: 10,
-          callback: function (value, index, values) {
-            const label = this.getLabelForValue(value);
-            if (!label) return "";
-
-            try {
-              const parts = label.split(", ");
-              if (parts.length >= 2) {
-                const datePart = parts[0];
-                const timePart = parts[1].split(":").slice(0, 2).join(":");
-                return `${datePart}\n${timePart}`;
-              }
-              return label;
-            } catch (e) {
-              return label;
-            }
-          },
-        },
-      },
-      y: {
-        beginAtZero: true,
-        grid: {
-          color: "rgba(0, 0, 0, 0.06)",
-          drawBorder: false,
-        },
-        ticks: {
-          font: {
-            size: 11,
-            family: "'Roboto', 'Helvetica', 'Arial', sans-serif",
-          },
-          color: "#666",
-          padding: 8,
-          callback: function (value) {
-            return value.toFixed(2);
-          },
-        },
-      },
-    },
-    animation: {
-      duration: 1000,
-      easing: "easeOutQuart",
-    },
-    interaction: {
-      mode: "index",
-      intersect: false,
-    },
   };
-
-  // Limpiar el gráfico solo al desmontar el componente
-  useEffect(() => {
-    return () => {
-      if (chartRef.current) {
-        chartRef.current.destroy();
-      }
-    };
-  }, []);
 
   return (
     <Card
-      elevation={2}
       sx={{
         width: "100%",
-        height: "100%", // Ajustado para heredar altura del padre como en BarHistorico
+        height: "100%",
         borderRadius: 3,
         bgcolor: "#ffffff",
         transition: "box-shadow 0.3s ease",
@@ -285,13 +251,13 @@ const LineHistorico = ({ userId, title, variables = [], fetchHistoricalData, hei
               fontSize: { xs: "1.25rem", md: "1.5rem" },
             }}
           >
-            {title || "Gráfico Histórico"}
+            {title || "Gráfico de Barras Apiladas Histórico"}
           </Typography>
           <Box sx={{ display: "flex", gap: 1 }}>
-            <Tooltip title="Actualizar datos">
-              <IconButton
-                size="small"
-                onClick={fetchData}
+            <Tooltip title="Recargar datos">
+              <IconButton 
+                onClick={fetchData} 
+                disabled={loading}
                 sx={{
                   bgcolor: "rgba(25, 118, 210, 0.1)",
                   "&:hover": {
@@ -531,7 +497,7 @@ const LineHistorico = ({ userId, title, variables = [], fetchHistoricalData, hei
               </Button>
             </Box>
           ) : (
-            <Line ref={chartRef} data={data} options={options} />
+            <Bar ref={chartRef} data={data} options={options} />
           )}
         </Box>
       </CardContent>
@@ -539,8 +505,8 @@ const LineHistorico = ({ userId, title, variables = [], fetchHistoricalData, hei
   );
 };
 
-LineHistorico.propTypes = {
-  userId: PropTypes.string.isRequired, // Ajustado a string como en BarHistorico
+StackedBarHistorico.propTypes = {
+  userId: PropTypes.string.isRequired,
   title: PropTypes.string.isRequired,
   variables: PropTypes.arrayOf(
     PropTypes.shape({
@@ -552,9 +518,9 @@ LineHistorico.propTypes = {
   height: PropTypes.number,
 };
 
-LineHistorico.defaultProps = {
+StackedBarHistorico.defaultProps = {
   variables: [],
   height: 400,
 };
 
-export default LineHistorico;
+export default StackedBarHistorico;

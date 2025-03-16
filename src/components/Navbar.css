@@ -80,17 +80,11 @@
   }
   
   .sidebar-menu li {
-    padding: 20px;
+    padding: 0;
     display: flex;
     align-items: center;
-    gap: 15px;
     cursor: pointer;
     transition: background-color 0.2s ease;
-  }
-  
-  .sidebar-menu li:hover {
-    background-color: var(--sidebar-hover);
-    transition: background-color var(--sidebar-transition);
   }
   
   .sidebar-menu li a {
@@ -99,6 +93,9 @@
     display: flex;
     align-items: center;
     gap: 15px;
+    padding: 20px;
+    width: 100%;
+    height: 100%;
     font-size: 18px;
     font-family: "Roboto", sans-serif;
   }
@@ -169,17 +166,20 @@
   
   /* ===== Estilo especial para el item de IA ===== */
   .sidebar-menu li.ia-item {
-    background-color: #00ff84; /* Color de fondo distintivo */
-    border-radius: 8px;        /* Bordes redondeados */
-    margin: 10px 15px;         /* Separarlo un poco del resto */
-    padding: 15px 20px;        /* Más padding para destacar */
-    transition: background-color var(--sidebar-transition),
-                transform var(--sidebar-transition);
+    background: transparent;
+    border: none;
+    margin: 8px 0;
+  }
+  
+  .sidebar-menu li.ia-item .ia-icon {
   }
   
   .sidebar-menu li.ia-item:hover {
-    background-color: #28c76f;
-    transform: translateX(3px);
+    background-color: rgba(255, 255, 255, 0.1);
+  }
+  
+  .sidebar-menu li.ia-item.active {
+    background-color: rgba(255, 255, 255, 0.15);
   }
   
   .sidebar-menu li.ia-item a {
@@ -205,3 +205,41 @@
     }
   }
   
+  /* Estilos para el contenedor de cerrar sesión */
+  .logout-container {
+    position: absolute;
+    bottom: 20px;
+    width: 100%;
+    padding: 0 20px;
+    font-family: inherit;
+    font-size: inherit;
+  }
+
+  .logout-container .sidebar-link {
+    display: flex;
+    align-items: center;
+    padding: 12px;
+    color: inherit;
+    text-decoration: none;
+    border-radius: 8px;
+    transition: background-color 0.3s;
+  }
+
+  .logout-container .sidebar-link:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .logout-container .sidebar-link span {
+    margin-left: 12px;
+    font-family: inherit;
+    font-weight: 500;
+    font-size: 0.9rem;
+    letter-spacing: 0.5px;
+    opacity: 1;
+    transition: opacity 0.3s;
+  }
+
+  /* Ajuste para cuando el sidebar está colapsado */
+  .sidebar.collapsed .logout-container .sidebar-link span {
+    display: none;
+  }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useContext, useRef } from "react";
 import {
   Button,
   TextField,
@@ -24,70 +24,103 @@ import {
   Title,
   Tooltip as ChartTooltip,
   Legend,
+  Filler,
 } from "chart.js";
-import ChartDataLabels from 'chartjs-plugin-datalabels';
+import ChartDataLabels from "chartjs-plugin-datalabels";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import InfoIcon from "@mui/icons-material/Info";
 import PropTypes from "prop-types";
+import { MqttContext } from "./MqttContext";
 
 // Registrar componentes de Chart.js
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, ChartTooltip, Legend, ChartDataLabels);
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  ChartTooltip,
+  Legend,
+  Filler,
+  ChartDataLabels
+);
 
-// Función auxiliar para convertir colores hex a rgba
-const hexToRgba = (hex, alpha = 1) => {
-  try {
-    if (!hex) return `rgba(0, 0, 0, ${alpha})`;
-    const r = parseInt(hex.slice(1, 3), 16);
-    const g = parseInt(hex.slice(3, 5), 16);
-    const b = parseInt(hex.slice(5, 7), 16);
-    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-  } catch (e) {
-    console.error("Error al convertir color:", e);
-    return hex;
-  }
-};
-
-const LineHistorico = ({ userId, title, variables = [], fetchHistoricalData, height }) => {
+const AreaHistorico = ({ userId, title, variables, fetchHistoricalData, height }) => {
+  const { mqttData } = useContext(MqttContext);
+  const chartRef = useRef(null);
+  
+  // Estados
   const [filter, setFilter] = useState("1D");
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [startDate, setStartDate] = useState("");
-  const [startTime, setStartTime] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [endTime, setEndTime] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [data, setData] = useState(null);
-  const chartRef = useRef(null);
+  const [startTime, setStartTime] = useState("00:00");
+  const [endTime, setEndTime] = useState("23:59");
 
-  const fetchData = async (currentFilter = filter) => {
+  // Efecto para inicializar fechas
+  useEffect(() => {
+    const today = new Date();
+    const formattedDate = today.toISOString().split("T")[0];
+    setStartDate(formattedDate);
+    setEndDate(formattedDate);
+  }, []);
+
+  // Efecto para cargar datos al cambiar filtro o variables
+  useEffect(() => {
+    if (variables && variables.length > 0) {
+      fetchData();
+    }
+  }, [filter, variables, userId]);
+
+  // Función para manejar el cambio de filtro
+  const handleFilterClick = (newFilter) => {
+    setFilter(newFilter);
+    setError(null); // Resetear el error al cambiar de filtro
+  };
+
+  // Función para aplicar filtro personalizado
+  const handleCustomFilter = () => {
+    if (startDate && endDate) {
+      setFilter("custom");
+      fetchData();
+    }
+  };
+
+  // Función para obtener datos históricos
+  const fetchData = async () => {
+    if (!variables || variables.length === 0) {
+      setData(null);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setError(null);
+
     try {
       let startDateTime = null;
       let endDateTime = null;
 
-      // Solo usar fechas personalizadas si el filtro es "custom"
-      if (currentFilter === "custom") {
-        if (startDate) {
-          startDateTime = startTime ? `${startDate}T${startTime}:00.000Z` : `${startDate}T00:00:00.000Z`;
-        }
-
-        if (endDate) {
-          endDateTime = endTime ? `${endDate}T${endTime}:00.000Z` : `${endDate}T23:59:59.999Z`;
-        }
-      } else {
-        // Para filtros predefinidos, no enviar fechas personalizadas
-        startDateTime = null;
-        endDateTime = null;
+      if (filter === "custom" && startDate && endDate) {
+        startDateTime = startTime ? `${startDate}T${startTime}:00.000Z` : `${startDate}T00:00:00.000Z`;
+        endDateTime = endTime ? `${endDate}T${endTime}:00.000Z` : `${endDate}T23:59:59.999Z`;
       }
 
-      const historicalData = await fetchHistoricalData(userId, variables, currentFilter, startDateTime, endDateTime);
-      console.log("Datos históricos recibidos:", historicalData);
+      console.log("Solicitando datos históricos con:", { userId, variables, filter, startDateTime, endDateTime });
+      const historicalData = await fetchHistoricalData(userId, variables, filter, startDateTime, endDateTime);
+      console.log("Datos históricos recibidos en AreaHistorico:", historicalData);
 
       if (!historicalData || historicalData.length === 0) {
-        setData(null);
         setError("No hay datos disponibles para el período seleccionado");
+        setData({
+          labels: [],
+          datasets: [],
+        });
+        setLoading(false);
         return;
       }
 
@@ -96,66 +129,41 @@ const LineHistorico = ({ userId, title, variables = [], fetchHistoricalData, hei
         datasets: variables.map((variable, index) => ({
           label: variable.value,
           data: historicalData.map((item) => item.values[variable.value] || 0),
-          backgroundColor: hexToRgba(variable.color, 0.7),
+          backgroundColor: `${variable.color}80`, // Color con transparencia para el área
           borderColor: variable.color,
           borderWidth: 2,
-          pointRadius: 4, // Añadido para puntos visibles como en la imagen
-          pointHoverRadius: 6,
+          pointRadius: 3,
+          pointHoverRadius: 5,
+          tension: 0.4,
+          fill: true, // Rellenar el área bajo la línea
         })),
       });
-    } catch (error) {
-      console.error("Error al cargar datos históricos:", error);
-      setError("Error al cargar los datos históricos");
+    } catch (err) {
+      console.error("Error al cargar datos históricos:", err);
+      setError("Error al cargar los datos históricos. Por favor, inténtalo de nuevo.");
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchData();
-  }, [filter]);
-
-  const handleFilterClick = (newFilter) => {
-    // Reiniciar fechas personalizadas cuando se cambia a filtros predefinidos
-    if (newFilter !== "custom") {
-      setStartDate("");
-      setStartTime("");
-      setEndDate("");
-      setEndTime("");
-    }
-    setFilter(newFilter);
-    setShowDatePicker(false);
-    setError(null); // Reiniciar el error al cambiar de filtro
-    // No llamamos a fetchData aquí porque ya se llamará en el useEffect
-  };
-
-  const handleCustomFilter = () => {
-    if (startDate && endDate) {
-      setFilter("custom");
-      setError(null); // Reiniciar el error al aplicar filtro personalizado
-      // Forzar la actualización de los datos inmediatamente en lugar de esperar al useEffect
-      // ya que el cambio de estado de setFilter puede no reflejarse inmediatamente
-      fetchData("custom");
-    }
-  };
-
+  // Opciones del gráfico
   const options = {
     responsive: true,
     maintainAspectRatio: false,
+    interaction: {
+      mode: "index",
+      intersect: false,
+    },
     plugins: {
       legend: {
         position: "top",
-        align: "center",
         labels: {
-          padding: 20,
           usePointStyle: true,
-          pointStyle: "circle",
+          boxWidth: 8,
+          padding: 15,
           font: {
-            size: 12,
-            family: "'Roboto', 'Helvetica', 'Arial', sans-serif",
-            weight: 500,
+            size: 11,
           },
-          color: "#555",
         },
       },
       tooltip: {
@@ -166,78 +174,42 @@ const LineHistorico = ({ userId, title, variables = [], fetchHistoricalData, hei
         titleFont: {
           size: 14,
           weight: "bold",
-          family: "'Roboto', 'Helvetica', 'Arial', sans-serif",
         },
         bodyFont: {
           size: 13,
-          family: "'Roboto', 'Helvetica', 'Arial', sans-serif",
         },
         padding: 12,
         cornerRadius: 8,
         boxPadding: 6,
         usePointStyle: true,
-        callbacks: {
-          title: (context) => context[0].label,
-          label: (context) => {
-            const label = context.dataset.label || "";
-            const value = context.parsed.y;
-            return `${label}: ${value.toFixed(2)}`;
-          },
-        },
       },
       datalabels: {
-        display: false,
+        display: false, // Ocultar los valores numéricos sobre los puntos
       },
     },
     scales: {
       x: {
         grid: {
-          display: false,
-          drawBorder: false,
+          display: true,
+          color: "rgba(0, 0, 0, 0.05)",
         },
         ticks: {
-          font: {
-            size: 11,
-            family: "'Roboto', 'Helvetica', 'Arial', sans-serif",
-          },
-          color: "#666",
-          maxRotation: 90,
+          maxRotation: 45,
           minRotation: 45,
-          autoSkip: true,
-          maxTicksLimit: 10,
-          callback: function (value, index, values) {
-            const label = this.getLabelForValue(value);
-            if (!label) return "";
-
-            try {
-              const parts = label.split(", ");
-              if (parts.length >= 2) {
-                const datePart = parts[0];
-                const timePart = parts[1].split(":").slice(0, 2).join(":");
-                return `${datePart}\n${timePart}`;
-              }
-              return label;
-            } catch (e) {
-              return label;
-            }
+          font: {
+            size: 10,
           },
         },
       },
       y: {
         beginAtZero: true,
         grid: {
-          color: "rgba(0, 0, 0, 0.06)",
-          drawBorder: false,
+          display: true,
+          color: "rgba(0, 0, 0, 0.05)",
         },
         ticks: {
           font: {
-            size: 11,
-            family: "'Roboto', 'Helvetica', 'Arial', sans-serif",
-          },
-          color: "#666",
-          padding: 8,
-          callback: function (value) {
-            return value.toFixed(2);
+            size: 10,
           },
         },
       },
@@ -246,27 +218,14 @@ const LineHistorico = ({ userId, title, variables = [], fetchHistoricalData, hei
       duration: 1000,
       easing: "easeOutQuart",
     },
-    interaction: {
-      mode: "index",
-      intersect: false,
-    },
   };
-
-  // Limpiar el gráfico solo al desmontar el componente
-  useEffect(() => {
-    return () => {
-      if (chartRef.current) {
-        chartRef.current.destroy();
-      }
-    };
-  }, []);
 
   return (
     <Card
-      elevation={2}
+      elevation={0}
       sx={{
         width: "100%",
-        height: "100%", // Ajustado para heredar altura del padre como en BarHistorico
+        height: "100%",
         borderRadius: 3,
         bgcolor: "#ffffff",
         transition: "box-shadow 0.3s ease",
@@ -285,7 +244,7 @@ const LineHistorico = ({ userId, title, variables = [], fetchHistoricalData, hei
               fontSize: { xs: "1.25rem", md: "1.5rem" },
             }}
           >
-            {title || "Gráfico Histórico"}
+            {title || "Gráfico de Área Histórico"}
           </Typography>
           <Box sx={{ display: "flex", gap: 1 }}>
             <Tooltip title="Actualizar datos">
@@ -404,7 +363,6 @@ const LineHistorico = ({ userId, title, variables = [], fetchHistoricalData, hei
                   InputLabelProps={{ shrink: true }}
                   size="small"
                   fullWidth
-                  inputProps={{ step: 300 }}
                   sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }}
                 />
               </Grid>
@@ -470,8 +428,8 @@ const LineHistorico = ({ userId, title, variables = [], fetchHistoricalData, hei
 
         <Box
           sx={{
-            height: height ? `${height}px` : "400px", // Altura fija para asegurar visibilidad del eje X
-            minHeight: "300px", // Mínimo para garantizar espacio
+            height: height ? `${height}px` : "400px",
+            minHeight: "300px",
             position: "relative",
             display: "flex",
             alignItems: "center",
@@ -539,22 +497,23 @@ const LineHistorico = ({ userId, title, variables = [], fetchHistoricalData, hei
   );
 };
 
-LineHistorico.propTypes = {
-  userId: PropTypes.string.isRequired, // Ajustado a string como en BarHistorico
+AreaHistorico.propTypes = {
+  userId: PropTypes.string.isRequired,
   title: PropTypes.string.isRequired,
   variables: PropTypes.arrayOf(
     PropTypes.shape({
       value: PropTypes.string,
       color: PropTypes.string,
+      label: PropTypes.string,
     })
   ),
   fetchHistoricalData: PropTypes.func.isRequired,
   height: PropTypes.number,
 };
 
-LineHistorico.defaultProps = {
+AreaHistorico.defaultProps = {
   variables: [],
   height: 400,
 };
 
-export default LineHistorico;
+export default AreaHistorico;

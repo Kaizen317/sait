@@ -1,14 +1,38 @@
 import React from "react";
 import PropTypes from "prop-types";
 import { ArrowUpward, ArrowDownward } from "@mui/icons-material";
+import { Box, Typography } from "@mui/material";
 
-const ValueCardComponent = ({ variables, title }) => {
+const ValueCardComponent = ({ variables, title, height }) => {
   // Verificar si hay datos
   if (!variables || variables.length === 0) {
     return (
-      <div style={{
+      <Box
+        sx={{
+          width: "100%",
+          height: height ? `${height}px` : "100%", // Usar altura por defecto relativa
+          padding: "15px",
+          backgroundColor: "white",
+          borderRadius: "8px",
+          boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+          alignItems: "center",
+        }}
+      >
+        <Typography variant="body2" color="text.secondary">
+          No hay datos disponibles
+        </Typography>
+      </Box>
+    );
+  }
+
+  return (
+    <Box
+      sx={{
         width: "100%",
-        height: "100%",
+        height: height ? `${height}px` : "100%", // Usar la prop height si se proporciona
         padding: "15px",
         backgroundColor: "white",
         borderRadius: "8px",
@@ -16,40 +40,29 @@ const ValueCardComponent = ({ variables, title }) => {
         display: "flex",
         flexDirection: "column",
         justifyContent: "center",
-        alignItems: "center",
-      }}>
-        <div style={{ fontSize: "14px", color: "#666" }}>
-          No hay datos disponibles
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div style={{
-      width: "100%",
-      height: "100%",
-      padding: "15px",
-      backgroundColor: "white",
-      borderRadius: "8px",
-      boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-      display: "flex",
-      flexDirection: "column",
-      justifyContent: "center"
-    }}>
-      <div style={{
-        fontSize: "14px",
-        color: "#666",
-        marginBottom: "8px"
-      }}>
+      }}
+      role="figure"
+      aria-label={`Value card: ${title}`}
+    >
+      <Typography
+        variant="body2"
+        sx={{
+          fontSize: "14px",
+          color: "#666",
+          marginBottom: "8px",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        }}
+      >
         {title}
-      </div>
+      </Typography>
 
       {/* Mostrar todas las variables */}
       {variables.map((variable, index) => {
         const values = variable.data || [];
-        const currentValue = values[values.length - 1] || 0;
-        const previousValue = values[values.length - 2] || 0;
+        const currentValue = values.length > 0 ? values[values.length - 1] : 0;
+        const previousValue = values.length > 1 ? values[values.length - 2] : 0;
 
         // Calcular el cambio porcentual
         const percentageChange = previousValue !== 0
@@ -66,42 +79,43 @@ const ValueCardComponent = ({ variables, title }) => {
         };
 
         return (
-          <div key={index} style={{ marginBottom: "16px" }}>
-            <div style={{
-              fontSize: "18px",
-              fontWeight: "bold",
-              color: "#333",
-              marginBottom: "4px"
-            }}>
+          <Box key={index} sx={{ marginBottom: "16px" }}>
+            <Typography
+              variant="h6"
+              sx={{
+                fontSize: "18px",
+                fontWeight: "bold",
+                color: "#333",
+                marginBottom: "4px",
+              }}
+            >
               {variable.value}: {currentValue.toFixed(1)}
-            </div>
+            </Typography>
 
-            <div style={{
-              display: "flex",
-              alignItems: "center",
-              color: getTrendColor(percentageChange),
-              fontSize: "12px"
-            }}>
+            <Box sx={{ display: "flex", alignItems: "center", color: getTrendColor(percentageChange), fontSize: "12px" }}>
               {percentageChange > 0 ? (
-                <ArrowUpward style={{ fontSize: 16 }} />
+                <ArrowUpward sx={{ fontSize: 16 }} />
               ) : percentageChange < 0 ? (
-                <ArrowDownward style={{ fontSize: 16 }} />
+                <ArrowDownward sx={{ fontSize: 16 }} />
               ) : null}
-              <span style={{ marginLeft: "4px" }}>
+              <Typography sx={{ marginLeft: "4px" }}>
                 {Math.abs(percentageChange).toFixed(1)}%
-              </span>
-              <span style={{
-                marginLeft: "4px",
-                fontSize: "11px",
-                color: "#666"
-              }}>
+              </Typography>
+              <Typography
+                variant="caption"
+                sx={{
+                  marginLeft: "4px",
+                  fontSize: "11px",
+                  color: "#666",
+                }}
+              >
                 vs anterior
-              </span>
-            </div>
-          </div>
+              </Typography>
+            </Box>
+          </Box>
         );
       })}
-    </div>
+    </Box>
   );
 };
 
@@ -114,6 +128,11 @@ ValueCardComponent.propTypes = {
     })
   ).isRequired,
   title: PropTypes.string.isRequired,
+  height: PropTypes.number, // Nueva prop para controlar la altura
+};
+
+ValueCardComponent.defaultProps = {
+  height: undefined, // Dejar como relativo al contenedor padre por defecto
 };
 
 export default ValueCardComponent;

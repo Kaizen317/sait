@@ -1,0 +1,16 @@
+  const chartTypes = [
+    { value: "LineChart", label: "Línea", icon: <TimelineIcon />, color: "#6366f1", gradient: "linear-gradient(135deg, #6366f1, #4f46e5)", description: "Tendencias temporales" },
+    { value: "AreaChart", label: "Área", icon: <TimelineIcon />, color: "#22c55e", gradient: "linear-gradient(135deg, #22c55e, #16a34a)", description: "Tendencias con áreas" },
+    { value: "BarChart", label: "Barras", icon: <BarChartIcon />, color: "#14b8a6", gradient: "linear-gradient(135deg, #14b8a6, #0d9488)", description: "Comparación de categorías" },
+    { value: "StackedBarChart", label: "Barras Apiladas", icon: <BarChartIcon />, color: "#f97316", gradient: "linear-gradient(135deg, #f97316, #ea580c)", description: "Componentes apilados" },
+    { value: "PieChart", label: "Torta", icon: <PieChartIcon />, color: "#ec4899", gradient: "linear-gradient(135deg, #ec4899, #db2777)", description: "Proporciones del total" },
+    { value: "DoughnutChart", label: "Dona", icon: <DonutLargeIcon />, color: "#06b6d4", gradient: "linear-gradient(135deg, #06b6d4, #0891b2)", description: "Proporciones con centro" },
+    { value: "GaugeChart", label: "Medidor", icon: <SpeedIcon />, color: "#eab308", gradient: "linear-gradient(135deg, #eab308, #ca8a04)", description: "Progreso hacia un objetivo" },
+    { value: "ValueCard", label: "Tarjeta", icon: <ViewModuleIcon />, color: "#10b981", gradient: "linear-gradient(135deg, #10b981, #059669)", description: "Valores clave" },
+    { value: "MixedChart", label: "Mixto", icon: <BarChartIcon />, color: "#f43f5e", gradient: "linear-gradient(135deg, #f43f5e, #e11d48)", description: "Barras y líneas combinadas" },
+    { value: "BarHistorico", label: "Barras Histórico", icon: <BarChartIcon />, color: "#3b82f6", gradient: "linear-gradient(135deg, #3b82f6, #1d4ed8)", description: "Historial en barras" },
+    { value: "LineHistorico", label: "Línea Histórico", icon: <TimelineIcon />, color: "#a855f7", gradient: "linear-gradient(135deg, #a855f7, #9333ea)", description: "Historial en líneas" },
+    { value: "AreaHistorico", label: "Área Histórico", icon: <TimelineIcon />, color: "#0ea5e9", gradient: "linear-gradient(135deg, #0ea5e9, #0284c7)", description: "Historial con áreas" },
+    { value: "StackedBarHistorico", label: "Barras Apiladas Histórico", icon: <BarChartIcon />, color: "#f59e0b", gradient: "linear-gradient(135deg, #f59e0b, #d97706)", description: "Historial en barras apiladas" },
+    { value: "PieHistorico", label: "Torta Histórico", icon: <PieChartIcon />, color: "#d946ef", gradient: "linear-gradient(135deg, #d946ef, #c026d3)", description: "Historial en torta" },
+  ];

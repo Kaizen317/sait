@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useContext, useRef } from "react";
 import {
   Button,
   TextField,
@@ -13,42 +13,94 @@ import {
   Alert,
   Tooltip,
   CircularProgress,
+  Divider,
+  Chip,
 } from "@mui/material";
-import { Line } from "react-chartjs-2";
+import { Pie } from "react-chartjs-2";
 import {
   Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
+  ArcElement,
   Tooltip as ChartTooltip,
   Legend,
 } from "chart.js";
-import ChartDataLabels from 'chartjs-plugin-datalabels';
+import ChartDataLabels from "chartjs-plugin-datalabels";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import InfoIcon from "@mui/icons-material/Info";
 import PropTypes from "prop-types";
+import { alpha } from "@mui/material/styles";
+import { MqttContext } from "./MqttContext";
 
 // Registrar componentes de Chart.js
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, ChartTooltip, Legend, ChartDataLabels);
+ChartJS.register(ArcElement, ChartTooltip, Legend, ChartDataLabels);
 
-// Función auxiliar para convertir colores hex a rgba
-const hexToRgba = (hex, alpha = 1) => {
-  try {
-    if (!hex) return `rgba(0, 0, 0, ${alpha})`;
-    const r = parseInt(hex.slice(1, 3), 16);
-    const g = parseInt(hex.slice(3, 5), 16);
-    const b = parseInt(hex.slice(5, 7), 16);
-    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-  } catch (e) {
-    console.error("Error al convertir color:", e);
-    return hex;
-  }
+// Componente para la leyenda personalizada
+const CustomLegendItem = ({ color, label, value, percentage }) => {
+  return (
+    <Grid container spacing={1} alignItems="center" sx={{ mb: 1 }}>
+      <Grid item>
+        <Box
+          sx={{
+            width: 12,
+            height: 12,
+            borderRadius: "3px",
+            backgroundColor: color,
+            boxShadow: `0 2px 4px ${alpha(color, 0.5)}`,
+          }}
+        />
+      </Grid>
+      <Grid item xs>
+        <Typography 
+          variant="body2" 
+          sx={{ 
+            fontWeight: 600, 
+            fontSize: "0.8rem",
+            color: (theme) => alpha(color, 0.9),
+            fontFamily: '"Inter", system-ui, sans-serif',
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {label}
+        </Typography>
+      </Grid>
+      <Grid item>
+        <Typography 
+          variant="body2" 
+          sx={{ 
+            fontWeight: 700, 
+            color: (theme) => alpha(color, 0.9),
+            fontSize: "0.8rem",
+            fontFamily: '"Inter", system-ui, sans-serif',
+          }}
+        >
+          {value.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+        </Typography>
+      </Grid>
+      <Grid item>
+        <Chip 
+          label={`${percentage}%`} 
+          size="small" 
+          sx={{ 
+            fontSize: "0.65rem", 
+            height: "18px", 
+            fontWeight: "bold",
+            backgroundColor: alpha(color, 0.15),
+            color: color,
+            border: `1px solid ${alpha(color, 0.3)}`,
+            '& .MuiChip-label': {
+              px: 0.8
+            }
+          }} 
+        />
+      </Grid>
+    </Grid>
+  );
 };
 
-const LineHistorico = ({ userId, title, variables = [], fetchHistoricalData, height }) => {
+const PieHistorico = ({ userId, title, variables = [], fetchHistoricalData, height }) => {
+  const { mqttData, subscribeToTopic } = useContext(MqttContext);
   const [filter, setFilter] = useState("1D");
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [startDate, setStartDate] = useState("");
@@ -58,11 +110,111 @@ const LineHistorico = ({ userId, title, variables = [], fetchHistoricalData, hei
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
-  const chartRef = useRef(null);
+  const [chartData, setChartData] = useState(null);
+  const [totalValue, setTotalValue] = useState(0);
+  const topicsRef = useRef([]);
+  const isRealTimeEnabled = useRef(false);
+  const lastMqttDataRef = useRef({});
+
+  // Función para procesar los datos MQTT y actualizar el gráfico
+  const processMqttData = () => {
+    if (!isRealTimeEnabled.current || !variables || variables.length === 0) return;
+    
+    let hasNewData = false;
+    const topicsToCheck = topicsRef.current;
+    
+    // Verificar si hay datos nuevos en los tópicos que nos interesan
+    for (const topic of topicsToCheck) {
+      const topicData = mqttData[topic];
+      if (!topicData) continue;
+      
+      const lastProcessedTime = lastMqttDataRef.current[topic];
+      const currentTime = topicData.time[topicData.time.length - 1];
+      
+      if (lastProcessedTime !== currentTime) {
+        hasNewData = true;
+        lastMqttDataRef.current[topic] = currentTime;
+      }
+    }
+    
+    if (!hasNewData) return;
+    
+    console.log("Actualizando gráfico con nuevos datos MQTT");
+    
+    // Actualizar el gráfico con los nuevos datos
+    const aggregatedData = {};
+    let total = 0;
+
+    // Inicializar con 0 para cada variable
+    variables.forEach((variable) => {
+      aggregatedData[variable.value] = 0;
+    });
+
+    // Procesar los datos de MQTT para cada variable
+    variables.forEach((variable) => {
+      topicsToCheck.forEach(topic => {
+        const topicData = mqttData[topic];
+        if (!topicData || !topicData.values[variable.value]) return;
+        
+        const value = topicData.values[variable.value][topicData.values[variable.value].length - 1] || 0;
+        aggregatedData[variable.value] += value;
+        total += value;
+      });
+    });
+
+    setTotalValue(total);
+
+    // Preparar datos para el gráfico de pie
+    const pieData = {
+      labels: variables.map((variable) => variable.value),
+      datasets: [
+        {
+          data: variables.map((variable) => aggregatedData[variable.value]),
+          backgroundColor: variables.map((variable) => hexToRgba(variable.color, 0.7)),
+          borderColor: variables.map((variable) => variable.color),
+          borderWidth: 2,
+        },
+      ],
+    };
+
+    setData(aggregatedData);
+    setChartData(pieData);
+  };
+
+  // Efecto para suscribirse a los tópicos MQTT cuando estamos en modo 1D
+  useEffect(() => {
+    if (filter === "1D" && variables && variables.length > 0) {
+      isRealTimeEnabled.current = true;
+      
+      // Suscribirse a los tópicos relevantes para cada variable
+      const topics = variables.map(variable => `${variable.variable}/${userId}`);
+      topicsRef.current = topics;
+      
+      // Suscribirse a cada tópico
+      topics.forEach(topic => {
+        console.log(`Suscribiendo a tópico MQTT: ${topic}`);
+        subscribeToTopic(topic);
+        lastMqttDataRef.current[topic] = null;
+      });
+    } else {
+      isRealTimeEnabled.current = false;
+    }
+    
+    return () => {
+      // Limpiar al desmontar
+      isRealTimeEnabled.current = false;
+    };
+  }, [filter, variables, userId, subscribeToTopic]);
+
+  // Efecto para procesar los datos MQTT cuando cambian
+  useEffect(() => {
+    processMqttData();
+  }, [mqttData]);
 
   const fetchData = async (currentFilter = filter) => {
     setLoading(true);
     setError(null);
+    setData(null);
     try {
       let startDateTime = null;
       let endDateTime = null;
@@ -87,22 +239,50 @@ const LineHistorico = ({ userId, title, variables = [], fetchHistoricalData, hei
 
       if (!historicalData || historicalData.length === 0) {
         setData(null);
+        setChartData(null);
         setError("No hay datos disponibles para el período seleccionado");
         return;
       }
 
-      setData({
-        labels: historicalData.map((item) => new Date(item.timestamp).toLocaleString()),
-        datasets: variables.map((variable, index) => ({
-          label: variable.value,
-          data: historicalData.map((item) => item.values[variable.value] || 0),
-          backgroundColor: hexToRgba(variable.color, 0.7),
-          borderColor: variable.color,
-          borderWidth: 2,
-          pointRadius: 4, // Añadido para puntos visibles como en la imagen
-          pointHoverRadius: 6,
-        })),
+      // Para gráfico de pie, necesitamos agregar los valores por variable
+      const aggregatedData = {};
+      let total = 0;
+
+      // Inicializar con 0 para cada variable
+      variables.forEach((variable) => {
+        aggregatedData[variable.value] = 0;
       });
+
+      // Sumar todos los valores para cada variable
+      historicalData.forEach((item) => {
+        variables.forEach((variable) => {
+          const value = item.values[variable.value] || 0;
+          aggregatedData[variable.value] += value;
+          total += value;
+        });
+      });
+
+      setTotalValue(total);
+
+      // Preparar datos para el gráfico de pie
+      const pieData = {
+        labels: variables.map((variable) => variable.value),
+        datasets: [
+          {
+            data: variables.map((variable) => aggregatedData[variable.value]),
+            backgroundColor: variables.map((variable) => hexToRgba(variable.color, 0.7)),
+            borderColor: variables.map((variable) => variable.color),
+            borderWidth: 2,
+          },
+        ],
+      };
+
+      setData(aggregatedData);
+      setChartData(pieData);
+      
+      // Si estamos en modo 1D, activamos la actualización en tiempo real
+      isRealTimeEnabled.current = currentFilter === "1D";
+      
     } catch (error) {
       console.error("Error al cargar datos históricos:", error);
       setError("Error al cargar los datos históricos");
@@ -123,16 +303,24 @@ const LineHistorico = ({ userId, title, variables = [], fetchHistoricalData, hei
       setEndDate("");
       setEndTime("");
     }
+    
+    // Limpiar el error y los datos al cambiar de filtro
+    setError(null);
+    setData(null);
+    setChartData(null);
     setFilter(newFilter);
     setShowDatePicker(false);
-    setError(null); // Reiniciar el error al cambiar de filtro
-    // No llamamos a fetchData aquí porque ya se llamará en el useEffect
+    // No llamamos a fetchData aquí, ya que el useEffect lo hará automáticamente
   };
 
   const handleCustomFilter = () => {
     if (startDate && endDate) {
+      // Limpiar el error y los datos al aplicar filtro personalizado
+      setError(null);
+      setData(null);
+      setChartData(null);
       setFilter("custom");
-      setError(null); // Reiniciar el error al aplicar filtro personalizado
+      setShowDatePicker(false);
       // Forzar la actualización de los datos inmediatamente en lugar de esperar al useEffect
       // ya que el cambio de estado de setFilter puede no reflejarse inmediatamente
       fetchData("custom");
@@ -142,131 +330,54 @@ const LineHistorico = ({ userId, title, variables = [], fetchHistoricalData, hei
   const options = {
     responsive: true,
     maintainAspectRatio: false,
+    cutout: 0, // Cambiado a 0 para que sea una torta completa sin hueco
     plugins: {
       legend: {
-        position: "top",
-        align: "center",
-        labels: {
-          padding: 20,
-          usePointStyle: true,
-          pointStyle: "circle",
-          font: {
-            size: 12,
-            family: "'Roboto', 'Helvetica', 'Arial', sans-serif",
-            weight: 500,
-          },
-          color: "#555",
-        },
+        display: false,
       },
       tooltip: {
         enabled: true,
-        backgroundColor: "rgba(255, 255, 255, 0.95)",
-        titleColor: "#333",
-        bodyColor: "#333",
-        titleFont: {
-          size: 14,
-          weight: "bold",
-          family: "'Roboto', 'Helvetica', 'Arial', sans-serif",
-        },
-        bodyFont: {
-          size: 13,
-          family: "'Roboto', 'Helvetica', 'Arial', sans-serif",
-        },
-        padding: 12,
-        cornerRadius: 8,
-        boxPadding: 6,
-        usePointStyle: true,
         callbacks: {
-          title: (context) => context[0].label,
-          label: (context) => {
-            const label = context.dataset.label || "";
-            const value = context.parsed.y;
-            return `${label}: ${value.toFixed(2)}`;
-          },
-        },
+          label: function (context) {
+            const label = context.label || '';
+            const value = context.raw || 0;
+            const percentage = totalValue > 0 ? Math.round((value / totalValue) * 100) : 0;
+            return `${label}: ${value.toLocaleString(undefined, { maximumFractionDigits: 2 })} (${percentage}%)`;
+          }
+        }
       },
       datalabels: {
-        display: false,
+        display: true,
+        color: '#fff',
+        font: {
+          weight: 'bold',
+          size: 12
+        },
+        textAlign: 'center',
+        textStrokeColor: '#000',
+        textStrokeWidth: 1,
+        formatter: (value, context) => {
+          const percentage = totalValue > 0 ? Math.round((value / totalValue) * 100) : 0;
+          return [
+            `${context.chart.data.labels[context.dataIndex]}`,
+            `${value.toLocaleString(undefined, { maximumFractionDigits: 1 })}`,
+            `(${percentage}%)`
+          ];
+        },
+        anchor: 'center',
+        align: 'center',
+        offset: 0,
+        padding: 0
       },
-    },
-    scales: {
-      x: {
-        grid: {
-          display: false,
-          drawBorder: false,
-        },
-        ticks: {
-          font: {
-            size: 11,
-            family: "'Roboto', 'Helvetica', 'Arial', sans-serif",
-          },
-          color: "#666",
-          maxRotation: 90,
-          minRotation: 45,
-          autoSkip: true,
-          maxTicksLimit: 10,
-          callback: function (value, index, values) {
-            const label = this.getLabelForValue(value);
-            if (!label) return "";
-
-            try {
-              const parts = label.split(", ");
-              if (parts.length >= 2) {
-                const datePart = parts[0];
-                const timePart = parts[1].split(":").slice(0, 2).join(":");
-                return `${datePart}\n${timePart}`;
-              }
-              return label;
-            } catch (e) {
-              return label;
-            }
-          },
-        },
-      },
-      y: {
-        beginAtZero: true,
-        grid: {
-          color: "rgba(0, 0, 0, 0.06)",
-          drawBorder: false,
-        },
-        ticks: {
-          font: {
-            size: 11,
-            family: "'Roboto', 'Helvetica', 'Arial', sans-serif",
-          },
-          color: "#666",
-          padding: 8,
-          callback: function (value) {
-            return value.toFixed(2);
-          },
-        },
-      },
-    },
-    animation: {
-      duration: 1000,
-      easing: "easeOutQuart",
-    },
-    interaction: {
-      mode: "index",
-      intersect: false,
     },
   };
-
-  // Limpiar el gráfico solo al desmontar el componente
-  useEffect(() => {
-    return () => {
-      if (chartRef.current) {
-        chartRef.current.destroy();
-      }
-    };
-  }, []);
 
   return (
     <Card
       elevation={2}
       sx={{
         width: "100%",
-        height: "100%", // Ajustado para heredar altura del padre como en BarHistorico
+        height: "100%",
         borderRadius: 3,
         bgcolor: "#ffffff",
         transition: "box-shadow 0.3s ease",
@@ -470,21 +581,11 @@ const LineHistorico = ({ userId, title, variables = [], fetchHistoricalData, hei
 
         <Box
           sx={{
-            height: height ? `${height}px` : "400px", // Altura fija para asegurar visibilidad del eje X
-            minHeight: "300px", // Mínimo para garantizar espacio
-            position: "relative",
             display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            borderRadius: 2,
-            bgcolor: "#fafbfc",
-            p: 2,
-            border: "1px solid rgba(0, 0, 0, 0.06)",
-            "& canvas": {
-              maxWidth: "100% !important",
-              width: "100% !important",
-              height: "100% !important",
-            },
+            flexDirection: { xs: "column", md: "row" },
+            gap: 3,
+            height: height ? `${height}px` : "400px",
+            minHeight: "300px",
           }}
         >
           {loading ? (
@@ -494,19 +595,23 @@ const LineHistorico = ({ userId, title, variables = [], fetchHistoricalData, hei
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
+                justifyContent: "center",
+                width: "100%",
                 gap: 2,
               }}
             >
               <CircularProgress size={40} thickness={4} />
               <Typography sx={{ color: "#666", fontSize: "0.875rem" }}>Cargando datos...</Typography>
             </Box>
-          ) : !data || !data.labels || data.labels.length === 0 ? (
+          ) : !chartData || !data ? (
             <Box
               sx={{
                 textAlign: "center",
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
+                justifyContent: "center",
+                width: "100%",
                 gap: 2,
                 padding: 3,
               }}
@@ -531,7 +636,22 @@ const LineHistorico = ({ userId, title, variables = [], fetchHistoricalData, hei
               </Button>
             </Box>
           ) : (
-            <Line ref={chartRef} data={data} options={options} />
+            <Box
+              sx={{
+                flex: "1 1 100%",
+                height: "100%",
+                position: "relative",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: 2,
+                bgcolor: "#fafbfc",
+                p: 2,
+                border: "1px solid rgba(0, 0, 0, 0.06)",
+              }}
+            >
+              <Pie data={chartData} options={options} />
+            </Box>
           )}
         </Box>
       </CardContent>
@@ -539,22 +659,28 @@ const LineHistorico = ({ userId, title, variables = [], fetchHistoricalData, hei
   );
 };
 
-LineHistorico.propTypes = {
-  userId: PropTypes.string.isRequired, // Ajustado a string como en BarHistorico
-  title: PropTypes.string.isRequired,
+// Función auxiliar para convertir colores hex a rgba
+const hexToRgba = (hex, alpha = 1) => {
+  if (!hex) return "rgba(0, 0, 0, 0.1)";
+  
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
+PieHistorico.propTypes = {
+  userId: PropTypes.string.isRequired,
+  title: PropTypes.string,
   variables: PropTypes.arrayOf(
     PropTypes.shape({
-      value: PropTypes.string,
-      color: PropTypes.string,
+      value: PropTypes.string.isRequired,
+      color: PropTypes.string.isRequired,
     })
   ),
   fetchHistoricalData: PropTypes.func.isRequired,
   height: PropTypes.number,
 };
 
-LineHistorico.defaultProps = {
-  variables: [],
-  height: 400,
-};
-
-export default LineHistorico;
+export default PieHistorico;

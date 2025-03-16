@@ -2,8 +2,7 @@
 .container {
   display: flex;
   min-height: 100vh;
-  font-family: Arial, sans-serif;
-  background-color: #f4f7fb;
+  overflow: hidden;
 }
 
 /* Logo Container */
@@ -14,7 +13,7 @@
 }
 
 .logo-image {
-  width: 120px; /* Ajusta el tamaño del logo */
+  width: 120px; /* Tamaño del logo en pantallas grandes */
   height: auto;
 }
 
@@ -29,29 +28,26 @@
 /* Columna Izquierda */
 .info-section {
   flex: 1;
-  background: #006875; /* Color de tu empresa */
-  color: white;
+  background-color: #006875;
+  position: relative;
   display: flex;
-  flex-direction: column;
+  align-items: center;
   justify-content: center;
-  padding: 3rem;
-  text-align: center;
+  padding: 0;
+  overflow: hidden;
 }
 
-.title {
-  font-size: 3rem;
-  font-weight: bold;
-  margin-bottom: 1.5rem;
-  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2); /* Sombra para el texto */
+.info-section path {
+  stroke-dasharray: 200;
+  animation: dash 2s forwards;
 }
 
-.description {
-  font-size: 1.2rem;
-  line-height: 1.8;
-  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2); /* Sombra para el texto */
+@keyframes dash {
+  to {
+    stroke-dashoffset: 10;
+  }
 }
 
-/* Contenedor de la visualización */
 .visualization-container {
   margin-top: 2rem;
   display: flex;
@@ -67,11 +63,14 @@ svg {
 /* Columna Derecha */
 .login-section {
   flex: 1;
-  background-color: #ffffff;
   display: flex;
   justify-content: center;
   align-items: center;
   padding: 2rem;
+  position: relative;
+  z-index: 1;
+  background: white;
+  min-height: 100vh; /* Asegurar que ocupe todo el alto en móviles */
 }
 
 .login-form {
@@ -175,14 +174,133 @@ svg {
   font-size: 0.9rem;
 }
 
-/* Responsive: Ocultar la parte informativa en dispositivos pequeños */
+/* Responsive: Ajustes para pantallas grandes (tablets y escritorios) */
+@media (min-width: 769px) {
+  .info-section {
+    display: flex;
+  }
+}
+
+/* Responsive: Ajustes para pantallas medianas (tablets, 600px - 768px) */
 @media (max-width: 768px) {
   .info-section {
-    display: none;
+    display: none; /* Ocultar sección informativa en tablets y móviles */
   }
 
   .login-section {
     flex: 1;
-    padding: 1rem;
+    padding: 1.5rem; /* Reducir padding en tablets */
+    justify-content: center; /* Centrar verticalmente */
+    min-height: 100vh; /* Asegurar que ocupe todo el alto */
+  }
+
+  .login-form {
+    max-width: 360px; /* Reducir el ancho del formulario en tablets */
+    padding: 1.5rem; /* Reducir padding del formulario */
+  }
+
+  .form-title {
+    font-size: 1.5rem; /* Reducir tamaño del título */
+    margin-bottom: 1.2rem;
+  }
+
+  .logo-image {
+    width: 100px; /* Reducir tamaño del logo */
+  }
+
+  .toggle-button {
+    font-size: 0.9rem; /* Reducir tamaño del botón de alternancia */
+    padding: 0.4rem 0.8rem;
+  }
+
+  .toggle-text {
+    font-size: 0.85rem; /* Reducir tamaño del texto de alternancia */
+  }
+}
+
+/* Responsive: Ajustes para pantallas pequeñas (teléfonos, menos de 600px) */
+@media (max-width: 600px) {
+  .login-section {
+    padding: 1rem; /* Reducir aún más el padding en móviles */
+  }
+
+  .login-form {
+    max-width: 100%; /* Ocupar todo el ancho disponible */
+    padding: 1.2rem; /* Reducir padding del formulario */
+  }
+
+  .form-title {
+    font-size: 1.3rem; /* Reducir aún más el tamaño del título */
+    margin-bottom: 1rem;
+  }
+
+  .logo-image {
+    width: 80px; /* Reducir más el tamaño del logo */
+  }
+
+  .logo-container {
+    margin-bottom: 1rem; /* Reducir espacio debajo del logo */
+  }
+
+  .login-button {
+    padding: 0.6rem; /* Reducir padding del botón */
+    font-size: 0.9rem; /* Reducir tamaño de fuente del botón */
+  }
+
+  .toggle-button {
+    font-size: 0.85rem; /* Reducir tamaño del botón de alternancia */
+    padding: 0.35rem 0.7rem;
+  }
+
+  .toggle-text {
+    font-size: 0.8rem; /* Reducir tamaño del texto de alternancia */
+  }
+
+  .error-message {
+    font-size: 0.8rem; /* Reducir tamaño del mensaje de error */
+    margin-top: 0.8rem;
+  }
+}
+
+/* Responsive: Ajustes para pantallas muy pequeñas (teléfonos pequeños, menos de 400px) */
+@media (max-width: 400px) {
+  .login-section {
+    padding: 0.5rem; /* Minimizar padding */
+  }
+
+  .login-form {
+    padding: 1rem; /* Reducir aún más el padding del formulario */
+  }
+
+  .form-title {
+    font-size: 1.1rem; /* Reducir más el tamaño del título */
+    margin-bottom: 0.8rem;
+  }
+
+  .logo-image {
+    width: 70px; /* Reducir aún más el tamaño del logo */
+  }
+
+  .logo-container {
+    margin-bottom: 0.8rem; /* Reducir espacio debajo del logo */
+  }
+
+  .login-button {
+    padding: 0.5rem; /* Reducir más el padding del botón */
+    font-size: 0.85rem;
+  }
+
+  .toggle-button {
+    font-size: 0.8rem; /* Reducir más el tamaño del botón de alternancia */
+    padding: 0.3rem 0.6rem;
+  }
+
+  .toggle-text {
+    font-size: 0.75rem; /* Reducir más el tamaño del texto de alternancia */
+  }
+
+  .error-message {
+    font-size: 0.75rem; /* Reducir más el tamaño del mensaje de error */
+    margin-top: 0.6rem;
   }
 }

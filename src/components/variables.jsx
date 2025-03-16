@@ -1,20 +1,36 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import NavBar from "./Navbar";
-import mqtt from "mqtt";
 import {
+  TextField,
+  Button,
   Card,
   CardContent,
   Typography,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
   Grid,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
   Snackbar,
   Alert,
   IconButton,
   Box,
   CircularProgress,
 } from "@mui/material";
-import DeleteIcon from "@mui/icons-material/Delete";
+import AddIcon from "@mui/icons-material/Add"; // Importa el ícono de "más"
+import DeleteIcon from "@mui/icons-material/Delete"; // Importa el ícono de eliminación
 import { styled } from "@mui/system";
+import { MqttContext } from "./MqttContext";
 
+// Estilo personalizado para las tarjetas
 const StyledCard = styled(Card)(({ theme }) => ({
   borderRadius: "16px",
   boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
@@ -25,311 +41,390 @@ const StyledCard = styled(Card)(({ theme }) => ({
   },
 }));
 
+// Función para formatear fechas
 const formatDate = (dateString) => {
   const date = new Date(dateString);
-  return date.toLocaleString(); // Puedes personalizar el formato según tus necesidades
+  return date.toLocaleString();
 };
 
-const Variables = () => {
-  const [topics, setTopics] = useState([]);
-  const [mqttData, setMqttData] = useState({}); // Eliminamos el uso de localStorage
+const VariablesList = () => {
+  const [newVariable, setNewVariable] = useState({
+    variableKey: "",
+    name: "",
+    description: "",
+  });
+  const [variables, setVariables] = useState([]);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState("");
+  const [modalOpen, setModalOpen] = useState(false); // Estado para controlar el modal
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [variableToDelete, setVariableToDelete] = useState(null);
+  const [confirmationInput, setConfirmationInput] = useState("");
   const [loading, setLoading] = useState(true);
+  const { mqttData, userId } = useContext(MqttContext);
+  const apiBaseUrl = "https://mt1snfrnuj.execute-api.us-east-1.amazonaws.com/variables";
 
-  const userId = localStorage.getItem("userId");
-  const apiBaseUrl = "https://z9tss4i6we.execute-api.us-east-1.amazonaws.com/devices";
-  const apiGatewayUrl = "https://uown6aglg5.execute-api.us-east-1.amazonaws.com/mqtt";
-
-  // Obtener los topics del usuario
+  // Efecto para mostrar el token
   useEffect(() => {
-    const fetchTopics = async () => {
-      if (!userId) {
-        setSnackbarMessage("El usuario no está logueado.");
+    const token = localStorage.getItem('token');
+    console.log('Token almacenado:', token);
+  }, []);
+
+  // Función para manejar la expiración del token
+  const handleTokenExpiration = () => {
+    localStorage.clear();
+    window.location.href = "/login";
+  };
+
+  useEffect(() => {
+    const fetchVariables = async () => {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setSnackbarMessage("No hay token disponible. Inicia sesión nuevamente.");
         setSnackbarOpen(true);
+        handleTokenExpiration();
         return;
       }
-
+  
       try {
-        const response = await fetch(`${apiBaseUrl}?userId=${userId}`);
-        if (!response.ok) {
-          const errorData = await response.json();
-          setSnackbarMessage(`Error: ${errorData.error || "No se pudieron cargar los topics."}`);
+        const response = await fetch("https://mt1snfrnuj.execute-api.us-east-1.amazonaws.com/variables", {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          }
+        });
+  
+        if (response.status === 401) {
+          setSnackbarMessage("La sesión ha expirado. Por favor, inicia sesión nuevamente.");
           setSnackbarOpen(true);
+          handleTokenExpiration();
           return;
         }
 
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error("Error en la respuesta:", errorData);
+          setSnackbarMessage(`Error: ${errorData.error || "No se pudieron cargar las variables."}`);
+          setSnackbarOpen(true);
+          return;
+        }
+  
         const data = await response.json();
-        const userTopics = data.devices.map((device) => device.topic);
-        setTopics(userTopics);
-        console.log("Topics obtenidos:", userTopics); // Log para depuración
+        setVariables(data.variables || []);
       } catch (error) {
+        console.error("Error en la solicitud:", error);
         setSnackbarMessage("Hubo un error al conectar con el servidor.");
         setSnackbarOpen(true);
       } finally {
         setLoading(false);
       }
     };
-
-    fetchTopics();
+  
+    fetchVariables();
   }, [userId]);
 
-  useEffect(() => {
-    const fetchMqttMessages = async () => {
-      if (!userId) {
-        setSnackbarMessage("El usuario no está logueado.");
-        setSnackbarOpen(true);
-        return;
-      }
-
-      try {
-        const response = await fetch(
-          `https://lboepfo1w8.execute-api.us-east-1.amazonaws.com/mqtttablavariables?userId=${userId}`
-        );
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          setSnackbarMessage(`Error al obtener datos: ${errorData.message}`);
-          setSnackbarOpen(true);
-          return;
-        }
-
-        const data = await response.json();
-        console.log("Datos obtenidos de la API:", data); // Log para depuración
-
-        // Verificar si data es un objeto y no está vacío
-        if (data && Object.keys(data).length > 0) {
-          setMqttData(data); // Actualizar el estado con los datos organizados
-        } else {
-          setSnackbarMessage("No se encontraron datos para el usuario.");
-          setSnackbarOpen(true);
-        }
-      } catch (error) {
-        console.error("Error obteniendo datos de la API:", error);
-        setSnackbarMessage("Error obteniendo datos de la base de datos.");
-        setSnackbarOpen(true);
-      }
-    };
-
-    fetchMqttMessages();
-  }, [userId]);
-
-  // Validar el formato del mensaje MQTT
-  const validateMessageFormat = (message) => {
-    try {
-      if (
-        typeof message.device_id === "string" &&
-        typeof message.subtopic === "string" &&
-        typeof message.values === "object" &&
-        typeof message.time === "string"
-      ) {
-        return true;
-      }
-    } catch (error) {
-      return false;
-    }
-    return false;
+  // Manejar cambios en los campos del formulario
+  const handleInputChange = (e) => {
+    setNewVariable({
+      ...newVariable,
+      [e.target.name]: e.target.value,
+    });
   };
 
-  // Enviar datos al API Gateway
-  const sendToApiGateway = async (dataArray) => {
+  // Modificar handleAddVariable
+  const handleAddVariable = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setSnackbarMessage("No hay token disponible. Inicia sesión nuevamente.");
+      setSnackbarOpen(true);
+      handleTokenExpiration();
+      return;
+    }
+    const { variableKey, name, description } = newVariable;
+  
+    if (!userId) {
+      setSnackbarMessage("El usuario no está logueado.");
+      setSnackbarOpen(true);
+      return;
+    }
+  
+    if (!variableKey || !name || !description) {
+      setSnackbarMessage("Todos los campos son obligatorios.");
+      setSnackbarOpen(true);
+      return;
+    }
+  
     try {
-      const userId = localStorage.getItem("userId");
-      if (!userId) {
-        throw new Error("Usuario no logueado");
-      }
-
-      const payload = dataArray.map((data) => ({
-        ...data,
+      const payload = {
         userId,
-        topic: data.topic,
-      }));
-
-      console.log("Payload enviado a la Lambda:", payload); // Log para depuración
-
-      const response = await fetch(apiGatewayUrl, {
+        variableKey,
+        name,
+        description,
+      };
+  
+      const response = await fetch(apiBaseUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`, // Incluir el token aquí
         },
         body: JSON.stringify(payload),
       });
-
-      if (response.ok) {
-        console.log("Datos enviados correctamente a la Lambda");
-      } else {
-        console.error("Error al enviar datos a la Lambda:", response.statusText);
-        const errorDetails = await response.json();
-        console.error("Detalles del error:", errorDetails);
+  
+      if (!response.ok) {
+        const errorData = await response.json();
+        setSnackbarMessage(`Error: ${errorData.error || "No se pudo agregar la variable."}`);
+        setSnackbarOpen(true);
+        return;
       }
+  
+      const newVariableData = await response.json();
+      setVariables((prevVariables) => [...prevVariables, newVariableData]);
+      setNewVariable({ variableKey: "", name: "", description: "" });
+      setModalOpen(false);
+      setSnackbarMessage("Variable agregada con éxito.");
+      setSnackbarOpen(true);
     } catch (error) {
-      console.error("Error en la solicitud al API Gateway:", error);
+      setSnackbarMessage("Hubo un error al conectar con el servidor.");
+      setSnackbarOpen(true);
     }
   };
 
-  // Conectar al broker MQTT y suscribirse a los topics
-  useEffect(() => {
-    if (topics.length === 0) return;
+  // Abrir modal para añadir variable
+  const handleOpenModal = () => {
+    setModalOpen(true);
+  };
 
-    const client = mqtt.connect("ws://44.219.190.124:8093/mqtt", {
-      clientId: `mqtt_client_${Math.random().toString(16).slice(2)}`,
-    });
+  // Cerrar modal
+  const handleCloseModal = () => {
+    setModalOpen(false);
+  };
 
-    client.on("connect", () => {
-      console.log("Conectado al broker MQTT");
+  // Abrir diálogo de confirmación para eliminar
+  const handleOpenDeleteDialog = (variable) => {
+    setVariableToDelete(variable);
+    setDialogOpen(true);
+  };
 
-      topics.forEach((topic) => {
-        const validTopic = topic.endsWith("#") ? topic : `${topic}#`;
-        client.subscribe(validTopic, (err) => {
-          if (err) {
-            console.error(`Error al suscribirse al topic ${validTopic}:`, err);
-          } else {
-            console.log(`Suscrito al topic: ${validTopic}`);
-          }
-        });
-      });
-    });
+  // Cerrar diálogo de confirmación
+  const handleCloseDeleteDialog = () => {
+    setDialogOpen(false);
+    setConfirmationInput("");
+  };
 
-    client.on("message", (topic, message) => {
-      try {
-        const parsedMessage = JSON.parse(message.toString());
-        console.log("Mensaje MQTT recibido:", parsedMessage); // Log para depuración
-
-        if (validateMessageFormat(parsedMessage)) {
-          const { device_id, subtopic, values, time } = parsedMessage;
-
-          setMqttData((prevData) => {
-            const updatedData = {
-              ...prevData, // Conserva todos los dispositivos y subtopics existentes
-              [device_id]: {
-                ...(prevData[device_id] || {}), // Conserva los subtopics existentes del dispositivo
-                [subtopic]: { values, time }, // Actualiza o añade el nuevo subtopic
-              },
-            };
-
-            console.log("Datos actualizados en el estado:", updatedData); // Log para depuración
-            return updatedData;
-          });
-
-          sendToApiGateway([{ ...parsedMessage, topic }]);
-        } else {
-          setSnackbarMessage("Formato de mensaje no válido");
-          setSnackbarOpen(true);
-        }
-      } catch (error) {
-        setSnackbarMessage("Error procesando mensaje MQTT");
-        setSnackbarOpen(true);
-        console.error("Error procesando mensaje MQTT:", error);
-      }
-    });
-
-    client.on("error", (err) => {
-      console.error("Error en cliente MQTT:", err);
-    });
-
-    return () => {
-      client.end();
-    };
-  }, [topics]);
-
-  // Eliminar un dispositivo
-  const handleDeleteDevice = async (deviceId) => {
+  // Eliminar una variable
+  const handleDeleteVariable = async () => {
+    if (confirmationInput !== "confirmar") {
+      setSnackbarMessage("Escribe 'confirmar' para eliminar la variable.");
+      setSnackbarOpen(true);
+      return;
+    }
     try {
-      // Enviar una solicitud a la API para eliminar el dispositivo de la base de datos
       const response = await fetch(
-        `https://uown6aglg5.execute-api.us-east-1.amazonaws.com/deletedevice?userId=${userId}&deviceId=${deviceId}`,
+        `${apiBaseUrl}?userId=${userId}&variableKey=${variableToDelete.variableKey}`,
         {
           method: "DELETE",
         }
       );
-
       if (!response.ok) {
         const errorData = await response.json();
-        setSnackbarMessage(`Error al eliminar el dispositivo: ${errorData.message}`);
+        setSnackbarMessage(`Error: ${errorData.error || "No se pudo eliminar la variable."}`);
         setSnackbarOpen(true);
         return;
       }
-
-      // Actualizar el estado local
-      setMqttData((prevData) => {
-        const updatedData = { ...prevData };
-        delete updatedData[deviceId];
-        return updatedData;
-      });
-
-      setSnackbarMessage("Dispositivo eliminado correctamente.");
+      setVariables((prevVariables) =>
+        prevVariables.filter((variable) => variable.variableKey !== variableToDelete.variableKey)
+      );
+      setSnackbarMessage("Variable eliminada con éxito.");
       setSnackbarOpen(true);
+      handleCloseDeleteDialog();
     } catch (error) {
-      console.error("Error eliminando el dispositivo:", error);
-      setSnackbarMessage("Error eliminando el dispositivo.");
+      setSnackbarMessage("Hubo un error al eliminar la variable.");
       setSnackbarOpen(true);
     }
   };
 
-  // Cerrar el Snackbar
+  // Cerrar Snackbar
   const handleCloseSnackbar = () => {
     setSnackbarOpen(false);
   };
 
   return (
-    <div className="flex min-h-screen bg-gray-100">
+    <>
       <NavBar />
-      <div className="container mx-auto px-4 py-6" style={{ marginLeft: "250px" }}>
+      {!localStorage.getItem('token') && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          Error: No se encontró token de autenticación
+        </Alert>
+      )}
+      {/* Contenedor principal con padding-top */}
+      <Box
+        sx={{
+          marginTop: "80px",
+          marginLeft: "240px", // Espacio para el navbar
+          padding: "20px",
+          width: "calc(100% - 260px)", // Ancho ajustado al navbar
+          height: "calc(100vh - 100px)",
+          overflow: "auto",
+          backgroundColor: "#fff",
+          borderRadius: "8px",
+          boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+          transition: "margin-left 0.3s, width 0.3s", // Transición suave
+          '@media (max-width: 600px)': {
+            marginLeft: "60px",
+            width: "calc(100% - 80px)"
+          }
+        }}
+      >
+        {/* Botón centrado para añadir variable */}
+        <Box display="flex" justifyContent="center" marginBottom={3}>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={handleOpenModal} // Aquí llamamos a la función handleOpenModal
+            sx={{
+              padding: "10px 20px",
+              fontSize: "1rem",
+              boxShadow: "0 4px 8px rgba(0, 0, 0, 0.2)",
+            }}
+          >
+            Añadir Variable
+          </Button>
+        </Box>
+
+        {/* Mostrar variables */}
         {loading ? (
-          <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
-            <CircularProgress />
-          </Box>
+          <CircularProgress />
         ) : (
-          <Grid container spacing={3}>
-            {Object.entries(mqttData).map(([deviceId, subtopics], index) => (
-              <Grid item xs={12} sm={6} md={4} key={index}>
-                <StyledCard>
-                  <CardContent>
-                    <Box display="flex" justifyContent="space-between" alignItems="center">
-                      <Typography variant="h5" style={{ fontWeight: "bold" }}>
-                        {deviceId}
-                      </Typography>
+          <TableContainer component={Paper}>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Nombre</TableCell>
+                  <TableCell>Clave</TableCell>
+                  <TableCell>Descripción</TableCell>
+                  <TableCell>Último Valor</TableCell>
+                  <TableCell>Acciones</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {variables.map((variable, index) => (
+                  <TableRow key={index}>
+                    <TableCell>{variable.name}</TableCell>
+                    <TableCell>{variable.variableKey}</TableCell>
+                    <TableCell>{variable.description}</TableCell>
+                    <TableCell>
+                      {mqttData[variable.variableKey] && (
+                        <Typography variant="body2">
+                          Último valor:
+                          <br />
+                          {JSON.stringify(mqttData[variable.variableKey], null, 2)}
+                        </Typography>
+                      )}
+                    </TableCell>
+                    <TableCell>
                       <IconButton
-                        aria-label="delete"
-                        onClick={() => handleDeleteDevice(deviceId)}
-                        size="small"
-                        style={{ color: "red" }}
+                        onClick={() => handleOpenDeleteDialog(variable)}
+                        color="error"
                       >
                         <DeleteIcon />
                       </IconButton>
-                    </Box>
-                    <Box style={{ maxHeight: "200px", overflowY: "auto", marginTop: "16px" }}>
-                      {Object.entries(subtopics).map(([subtopic, { values, time }], subIndex) => (
-                        <Box key={subIndex} style={{ marginBottom: "8px" }}>
-                          <Typography>
-                            <strong>{subtopic}:</strong> {JSON.stringify(values)}
-                          </Typography>
-                          <Typography variant="caption" color="textSecondary">
-                            {formatDate(time)}
-                          </Typography>
-                        </Box>
-                      ))}
-                    </Box>
-                  </CardContent>
-                </StyledCard>
-              </Grid>
-            ))}
-          </Grid>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
         )}
-      </div>
 
-      <Snackbar
-        open={snackbarOpen}
-        autoHideDuration={4000}
-        onClose={handleCloseSnackbar}
-        anchorOrigin={{ vertical: "top", horizontal: "center" }}
-      >
-        <Alert onClose={handleCloseSnackbar} severity="error">
-          {snackbarMessage}
-        </Alert>
-      </Snackbar>
-    </div>
+        {/* Modal para añadir variable */}
+        <Dialog open={modalOpen} onClose={handleCloseModal}>
+          <DialogTitle>Añadir Nueva Variable</DialogTitle>
+          <DialogContent>
+            <TextField
+              autoFocus
+              margin="dense"
+              label="Clave de la Variable"
+              name="variableKey"
+              value={newVariable.variableKey}
+              onChange={handleInputChange}
+              fullWidth
+              required
+            />
+            <TextField
+              margin="dense"
+              label="Nombre"
+              name="name"
+              value={newVariable.name}
+              onChange={handleInputChange}
+              fullWidth
+              required
+            />
+            <TextField
+              margin="dense"
+              label="Descripción"
+              name="description"
+              value={newVariable.description}
+              onChange={handleInputChange}
+              fullWidth
+              multiline
+              rows={2}
+              required
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleCloseModal} color="secondary">
+              Cancelar
+            </Button>
+            <Button onClick={handleAddVariable} variant="contained">
+              Guardar
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Diálogo de confirmación para eliminar */}
+        <Dialog open={dialogOpen} onClose={handleCloseDeleteDialog}>
+          <DialogTitle>Eliminar Variable</DialogTitle>
+          <DialogContent>
+            <DialogContentText>
+              ¿Estás seguro de que quieres eliminar la variable "{variableToDelete?.name}"?
+              <br />
+              Escribe "confirmar" para proceder.
+            </DialogContentText>
+            <TextField
+              autoFocus
+              margin="dense"
+              label="Confirmación"
+              value={confirmationInput}
+              onChange={(e) => setConfirmationInput(e.target.value)}
+              fullWidth
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleCloseDeleteDialog} color="secondary">
+              Cancelar
+            </Button>
+            <Button onClick={handleDeleteVariable} color="error">
+              Eliminar
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Snackbar para mensajes */}
+        <Snackbar
+          open={snackbarOpen}
+          autoHideDuration={6000}
+          onClose={handleCloseSnackbar}
+          anchorOrigin={{ vertical: "top", horizontal: "right" }}
+        >
+          <Alert onClose={handleCloseSnackbar} severity="info">
+            {snackbarMessage}
+          </Alert>
+        </Snackbar>
+      </Box>
+    </>
   );
 };
 
-export default Variables;
+export default VariablesList;

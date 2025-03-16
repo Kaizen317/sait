@@ -1,22 +1,27 @@
 /* eslint-disable no-unused-vars */
 import React, { useState } from 'react';
-import PropTypes from 'prop-types'; // Importa PropTypes para validar las props
+import PropTypes from 'prop-types';
 import { Dialog, DialogActions, DialogContent, DialogTitle, Button, TextField } from '@mui/material';
 
-const AddSubdashboardModal = ({ open, onClose, onSave }) => {
-  const [name, setName] = useState('');
-  const [color, setColor] = useState('#1976d2'); // Default color
+const AddSubdashboardModal = ({ open, onClose, onSave, initialData }) => {
+  const [name, setName] = useState(initialData?.name || '');
 
   const handleSave = () => {
     if (name) {
-      onSave({ name, color }); // Guardar el subdashboard con nombre y color
+      onSave({ 
+        name,
+        color: '#1976d2' // Color por defecto
+      });
+      setName('');
       onClose();
     }
   };
 
   return (
     <Dialog open={open} onClose={onClose}>
-      <DialogTitle>Añadir Subdashboard</DialogTitle>
+      <DialogTitle>
+        {initialData ? 'Editar Subdashboard' : 'Añadir Subdashboard'}
+      </DialogTitle>
       <DialogContent>
         <TextField
           autoFocus
@@ -25,14 +30,6 @@ const AddSubdashboardModal = ({ open, onClose, onSave }) => {
           fullWidth
           value={name}
           onChange={(e) => setName(e.target.value)}
-        />
-        <TextField
-          type="color"
-          margin="dense"
-          label="Color del Subdashboard"
-          fullWidth
-          value={color}
-          onChange={(e) => setColor(e.target.value)}
         />
       </DialogContent>
       <DialogActions>
@@ -43,11 +40,11 @@ const AddSubdashboardModal = ({ open, onClose, onSave }) => {
   );
 };
 
-// Añadir validación de las props con PropTypes
 AddSubdashboardModal.propTypes = {
-  open: PropTypes.bool.isRequired, // 'open' debe ser un booleano y es requerido
-  onClose: PropTypes.func.isRequired, // 'onClose' debe ser una función y es requerida
-  onSave: PropTypes.func.isRequired, // 'onSave' debe ser una función y es requerida
+  open: PropTypes.bool.isRequired,
+  onClose: PropTypes.func.isRequired,
+  onSave: PropTypes.func.isRequired,
+  initialData: PropTypes.object
 };
 
 export default AddSubdashboardModal;

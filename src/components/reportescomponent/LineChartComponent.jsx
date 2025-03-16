@@ -1,118 +1,227 @@
-import React from "react";
-import { Line } from "react-chartjs-2";
-import PropTypes from "prop-types";
-import "chart.js/auto";
+import React from 'react';
+import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js';
+import { Line } from 'react-chartjs-2';
+import PropTypes from 'prop-types';
+import 'chartjs-adapter-date-fns';
+import { es } from 'date-fns/locale';
 
-const LineChartComponent = ({ data, title }) => {
-  console.log("Datos recibidos en LineChartComponent:", data); // Depuración
+// Desactivar las etiquetas de datos globalmente para este tipo de gráfico
+ChartJS.defaults.plugins.datalabels = { display: false };
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
 
-  // Verificar si los datos están vacíos o no tienen la estructura esperada
+const LineChartComponent = ({ data, title, showTitle = true }) => {
+  console.log("Datos recibidos en LineChartComponent:", data);
+
   if (!data || !data.labels || !data.datasets) {
-    console.error("Datos no válidos:", data);
     return <div>No hay datos disponibles para mostrar.</div>;
   }
 
-  // Configurar los datos para el gráfico
+  // Preparar los datos para el gráfico con menos etiquetas para evitar compresión
   const chartData = {
-    labels: data.labels, // Fechas (time)
-    datasets: data.datasets.map((dataset, index) => ({
-      label: dataset.label, // Nombre de la variable
-      data: dataset.data, // Valores de la variable
-      backgroundColor: dataset.backgroundColor || `rgba(75, 192, 192, 0.2)`, // Color de fondo por defecto
-      borderColor: dataset.borderColor || `rgba(75, 192, 192, 1)`, // Color de la línea por defecto
-      borderWidth: dataset.borderWidth || 2, // Grosor de la línea por defecto
-      fill: dataset.fill || false, // Por defecto no rellenar
-      tension: dataset.tension || 0.4, // Curvatura de la línea
-    })),
+    labels: data.labels.map(label => {
+      try {
+        const date = new Date(label);
+        if (isNaN(date.getTime())) {
+          return label;
+        }
+        // Formato completo para las etiquetas según preferencia del usuario
+        return date.toLocaleString('es-ES', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
+        });
+      } catch (error) {
+        console.error('Error al formatear fecha:', error);
+        return label;
+      }
+    }),
+    datasets: data.datasets.map(dataset => ({
+      ...dataset,
+      tension: 0.2,
+      borderWidth: 3,
+      pointRadius: 4, 
+      pointHoverRadius: 7, 
+      fill: false,
+      // Desactivar las etiquetas de datos para este dataset específico
+      datalabels: {
+        display: false
+      }
+    }))
   };
+
+  // Reducir el número de etiquetas si hay demasiadas
+  const skipLabels = data.labels.length > 10;
+  const filteredLabels = skipLabels ? 
+    data.labels.filter((_, index) => index % Math.ceil(data.labels.length / 8) === 0) : 
+    data.labels;
 
   return (
     <div
       style={{
         width: "100%",
-        height: "320px",
-        padding: "20px",
-        marginBottom: "30px",
+        height: "600px", 
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden"
       }}
     >
-      <h3
-        style={{
-          textAlign: "center",
-          fontSize: "22px",
-          marginBottom: "15px",
-          color: "#444",
-          fontFamily: '"Helvetica Neue", Arial, sans-serif',
-          letterSpacing: "1px",
-          fontWeight: "bold",
-        }}
-      >
-        {title}
-      </h3>
+      {showTitle && (
+        <h3
+          style={{
+            textAlign: "center",
+            fontSize: "18px",
+            marginBottom: "10px",
+            color: "#444",
+            fontFamily: '"Helvetica Neue", Arial, sans-serif',
+            letterSpacing: "0.5px",
+            fontWeight: "bold",
+          }}
+        >
+          {title}
+        </h3>
+      )}
 
       <Line
         data={chartData}
         options={{
           responsive: true,
           maintainAspectRatio: false,
+          aspectRatio: 2.5, 
           plugins: {
             legend: {
-              position: "top",
+              position: 'top',
               labels: {
+                boxWidth: 15,
+                padding: 20,
                 font: {
-                  family: "Helvetica Neue, Arial, sans-serif",
-                  size: 15,
-                },
-                color: "#333",
-                padding: 15,
-              },
+                  size: 13,
+                  weight: 'bold'
+                }
+              }
             },
             tooltip: {
-              backgroundColor: "rgba(50,50,50,0.8)",
-              titleFont: { size: 16, weight: "bold" },
-              bodyFont: { size: 14 },
-              padding: 12,
-              borderColor: "#1e88e5",
+              backgroundColor: 'rgba(255, 255, 255, 0.95)',
+              titleColor: '#333',
+              bodyColor: '#666',
+              borderColor: '#ccc',
               borderWidth: 1,
-              callbacks: {
-                label: function (context) {
-                  return `${context.dataset.label}: ${context.raw}`;
-                },
+              padding: 12,
+              boxPadding: 5,
+              cornerRadius: 4,
+              titleFont: {
+                size: 14,
+                weight: 'bold'
               },
+              bodyFont: {
+                size: 13
+              },
+              callbacks: {
+                title: function(tooltipItems) {
+                  const item = tooltipItems[0];
+                  const index = item.dataIndex;
+                  try {
+                    // Mostrar la fecha completa en el tooltip
+                    const date = new Date(data.labels[index]);
+                    if (!isNaN(date.getTime())) {
+                      return date.toLocaleString('es-ES', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        hour12: false
+                      });
+                    }
+                  } catch (e) {
+                    // Si hay error, devolvemos el label original
+                  }
+                  return item.label;
+                }
+              }
             },
-          },
-          elements: {
-            line: {
-              tension: 0.4, // Curvatura de la línea
-            },
+            // Desactivar explícitamente las etiquetas de datos
+            datalabels: {
+              display: false
+            }
           },
           scales: {
             x: {
-              type: "category", // Usar escala de categoría en lugar de tiempo
-              grid: {
-                display: false,
-              },
               ticks: {
-                color: "#333",
+                maxRotation: 45,
+                minRotation: 45,
+                padding: 15,
+                autoSkip: true,
+                maxTicksLimit: 8,
                 font: {
-                  size: 14,
-                  family: "Arial, sans-serif",
+                  size: 12,
+                  weight: 'bold'
                 },
+                color: '#666',
+                callback: function(value, index, ticks) {
+                  // Mostrar solo algunas etiquetas para evitar compresión
+                  if (skipLabels && index % Math.ceil(ticks.length / 8) !== 0) {
+                    return '';
+                  }
+                  
+                  // Añadir clase para identificar las etiquetas del eje X
+                  setTimeout(() => {
+                    const canvas = document.getElementById(`chart-${title.replace(/\s+/g, '-')}`);
+                    if (canvas) {
+                      const xAxisLabels = canvas.querySelectorAll('.chartjs-axis-x .chartjs-tick');
+                      xAxisLabels.forEach(label => {
+                        label.classList.add('x-axis-label');
+                      });
+                    }
+                  }, 100);
+                  
+                  return chartData.labels[index];
+                }
               },
+              grid: {
+                display: false
+              },
+              afterFit: function(scale) {
+                // Aumentar el espacio para las etiquetas según preferencia del usuario
+                scale.height = 120;
+              }
             },
             y: {
               beginAtZero: true,
-              grid: {
-                color: "#eee",
-              },
               ticks: {
-                color: "#333",
+                padding: 15,
                 font: {
-                  size: 14,
-                  family: "Arial, sans-serif",
+                  size: 12,
+                  weight: 'bold'
                 },
+                color: '#666',
+                callback: function(value) {
+                  if (value % 1 === 0) {
+                    return value;
+                  }
+                  return value.toFixed(2);
+                }
               },
-            },
+              grid: {
+                color: 'rgba(0, 0, 0, 0.05)'
+              }
+            }
           },
+          elements: {
+            line: {
+              tension: 0.2
+            },
+            point: {
+              // Configuración adicional para los puntos
+              radius: 4,
+              hoverRadius: 7,
+              // Desactivar las etiquetas en los puntos
+              drawLabels: false
+            }
+          }
         }}
       />
     </div>
@@ -120,21 +229,9 @@ const LineChartComponent = ({ data, title }) => {
 };
 
 LineChartComponent.propTypes = {
-  data: PropTypes.shape({
-    labels: PropTypes.arrayOf(PropTypes.string).isRequired, // Fechas (time)
-    datasets: PropTypes.arrayOf(
-      PropTypes.shape({
-        label: PropTypes.string.isRequired, // Nombre de la variable
-        data: PropTypes.arrayOf(PropTypes.number).isRequired, // Valores de la variable
-        backgroundColor: PropTypes.string, // Color de fondo
-        borderColor: PropTypes.string, // Color de la línea
-        borderWidth: PropTypes.number, // Grosor de la línea
-        fill: PropTypes.bool, // Rellenar el área bajo la línea
-        tension: PropTypes.number, // Curvatura de la línea
-      })
-    ).isRequired,
-  }).isRequired,
-  title: PropTypes.string.isRequired,
+  data: PropTypes.object,
+  title: PropTypes.string,
+  showTitle: PropTypes.bool
 };
 
 export default LineChartComponent;
