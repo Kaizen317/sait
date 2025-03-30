@@ -34,6 +34,13 @@ import { MqttContext } from "./MqttContext";
 // Registrar componentes de Chart.js
 ChartJS.register(ArcElement, ChartTooltip, Legend, ChartDataLabels);
 
+// Función para convertir fechas a formato ISO local
+const toLocalISOString = (date) => {
+  const pad = (num) => num.toString().padStart(2, "0");
+
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+};
+
 // Componente para la leyenda personalizada
 const CustomLegendItem = ({ color, label, value, percentage }) => {
   return (
@@ -101,7 +108,7 @@ const CustomLegendItem = ({ color, label, value, percentage }) => {
 
 const PieHistorico = ({ userId, title, variables = [], fetchHistoricalData, height }) => {
   const { mqttData, subscribeToTopic } = useContext(MqttContext);
-  const [filter, setFilter] = useState("1D");
+  const [filter, setFilter] = useState("5m");
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [startDate, setStartDate] = useState("");
   const [startTime, setStartTime] = useState("");
@@ -216,25 +223,74 @@ const PieHistorico = ({ userId, title, variables = [], fetchHistoricalData, heig
     setError(null);
     setData(null);
     try {
-      let startDateTime = null;
-      let endDateTime = null;
+      let effectiveStart, effectiveEnd;
+      const now = new Date();
 
-      // Solo usar fechas personalizadas si el filtro es "custom"
       if (currentFilter === "custom") {
-        if (startDate) {
-          startDateTime = startTime ? `${startDate}T${startTime}:00.000Z` : `${startDate}T00:00:00.000Z`;
+        // Si es personalizado, se espera que el usuario haya seleccionado startDate y endDate
+        if (startDate && endDate) {
+          let startDateValue = new Date(startDate);
+          let endDateValue = new Date(endDate);
+  
+          // Combinar con las horas si se han seleccionado
+          if (startTime) {
+            const [sh, sm] = startTime.split(":");
+            startDateValue.setHours(parseInt(sh, 10), parseInt(sm, 10), 0, 0);
+          } else {
+            startDateValue.setHours(0, 0, 0, 0);
+          }
+  
+          if (endTime) {
+            const [eh, em] = endTime.split(":");
+            endDateValue.setHours(parseInt(eh, 10), parseInt(em, 10), 59, 999);
+          } else {
+            endDateValue.setHours(23, 59, 59, 999);
+          }
+  
+          effectiveStart = toLocalISOString(startDateValue);
+          effectiveEnd = toLocalISOString(endDateValue);
+        } else {
+          setError("Por favor selecciona fechas de inicio y fin");
+          setLoading(false);
+          return;
         }
+      } else if (["5m", "30m", "1h", "3h", "12h"].includes(currentFilter)) {
+        const minutesBack = {
+          "5m": 5,
+          "30m": 30,
+          "1h": 60,
+          "3h": 180,
+          "12h": 720
+        }[currentFilter];
 
-        if (endDate) {
-          endDateTime = endTime ? `${endDate}T${endTime}:00.000Z` : `${endDate}T23:59:59.999Z`;
-        }
+        const start = new Date(now.getTime() - minutesBack * 60 * 1000);
+        effectiveStart = toLocalISOString(start);
+        effectiveEnd = toLocalISOString(now);
       } else {
-        // Para filtros predefinidos, no enviar fechas personalizadas
-        startDateTime = null;
-        endDateTime = null;
+        // fallback por si algún filtro no está contemplado
+        const start = new Date(now);
+        start.setDate(now.getDate() - 1);
+        start.setHours(0, 0, 0, 0);
+        effectiveStart = toLocalISOString(start);
+        effectiveEnd = toLocalISOString(now);
       }
 
-      const historicalData = await fetchHistoricalData(userId, variables, currentFilter, startDateTime, endDateTime);
+      console.log("Solicitando datos históricos con:", { 
+        userId, 
+        variables, 
+        filter: currentFilter, 
+        effectiveStart, 
+        effectiveEnd 
+      });
+      
+      const historicalData = await fetchHistoricalData(
+        userId,
+        variables,
+        currentFilter,
+        effectiveStart,
+        effectiveEnd
+      );
+      
       console.log("Datos históricos recibidos:", historicalData);
 
       if (!historicalData || historicalData.length === 0) {
@@ -270,7 +326,7 @@ const PieHistorico = ({ userId, title, variables = [], fetchHistoricalData, heig
         datasets: [
           {
             data: variables.map((variable) => aggregatedData[variable.value]),
-            backgroundColor: variables.map((variable) => hexToRgba(variable.color, 0.7)),
+            backgroundColor: variables.map((variable) => variable.color),
             borderColor: variables.map((variable) => variable.color),
             borderWidth: 2,
           },
@@ -280,8 +336,8 @@ const PieHistorico = ({ userId, title, variables = [], fetchHistoricalData, heig
       setData(aggregatedData);
       setChartData(pieData);
       
-      // Si estamos en modo 1D, activamos la actualización en tiempo real
-      isRealTimeEnabled.current = currentFilter === "1D";
+      // Si estamos en modo 5m, activamos la actualización en tiempo real
+      isRealTimeEnabled.current = currentFilter === "5m";
       
     } catch (error) {
       console.error("Error al cargar datos históricos:", error);
@@ -436,7 +492,7 @@ const PieHistorico = ({ userId, title, variables = [], fetchHistoricalData, heig
                 gap: 1,
               }}
             >
-              {["1D", "7D", "30D"].map((option) => (
+              {["5m", "30m", "1h", "3h", "12h"].map((option) => (
                 <Button
                   key={option}
                   variant={filter === option ? "contained" : "outlined"}

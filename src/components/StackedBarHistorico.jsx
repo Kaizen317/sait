@@ -42,12 +42,19 @@ ChartJS.register(
   ChartDataLabels
 );
 
+// Función para convertir fechas a formato ISO local
+const toLocalISOString = (date) => {
+  const pad = (num) => num.toString().padStart(2, "0");
+
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+};
+
 const StackedBarHistorico = ({ userId, title, variables, fetchHistoricalData, height }) => {
   const { mqttData } = useContext(MqttContext);
   const chartRef = useRef(null);
   
   // Estados
-  const [filter, setFilter] = useState("1D");
+  const [filter, setFilter] = useState("5m");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -100,16 +107,74 @@ const StackedBarHistorico = ({ userId, title, variables, fetchHistoricalData, he
     setError(null);
 
     try {
-      let startDateTime = null;
-      let endDateTime = null;
+      let effectiveStart, effectiveEnd;
+      const now = new Date();
 
-      if (filter === "custom" && startDate && endDate) {
-        startDateTime = startTime ? `${startDate}T${startTime}:00.000Z` : `${startDate}T00:00:00.000Z`;
-        endDateTime = endTime ? `${endDate}T${endTime}:00.000Z` : `${endDate}T23:59:59.999Z`;
+      if (filter === "custom") {
+        // Si es personalizado, se espera que el usuario haya seleccionado startDate y endDate
+        if (startDate && endDate) {
+          let startDateValue = new Date(startDate);
+          let endDateValue = new Date(endDate);
+  
+          // Combinar con las horas si se han seleccionado
+          if (startTime) {
+            const [sh, sm] = startTime.split(":");
+            startDateValue.setHours(parseInt(sh, 10), parseInt(sm, 10), 0, 0);
+          } else {
+            startDateValue.setHours(0, 0, 0, 0);
+          }
+  
+          if (endTime) {
+            const [eh, em] = endTime.split(":");
+            endDateValue.setHours(parseInt(eh, 10), parseInt(em, 10), 59, 999);
+          } else {
+            endDateValue.setHours(23, 59, 59, 999);
+          }
+  
+          effectiveStart = toLocalISOString(startDateValue);
+          effectiveEnd = toLocalISOString(endDateValue);
+        } else {
+          setError("Por favor selecciona fechas de inicio y fin");
+          setLoading(false);
+          return;
+        }
+      } else if (["5m", "30m", "1h", "3h", "12h"].includes(filter)) {
+        const minutesBack = {
+          "5m": 5,
+          "30m": 30,
+          "1h": 60,
+          "3h": 180,
+          "12h": 720
+        }[filter];
+
+        const start = new Date(now.getTime() - minutesBack * 60 * 1000);
+        effectiveStart = toLocalISOString(start);
+        effectiveEnd = toLocalISOString(now);
+      } else {
+        // fallback por si algún filtro no está contemplado
+        const start = new Date(now);
+        start.setDate(now.getDate() - 1);
+        start.setHours(0, 0, 0, 0);
+        effectiveStart = toLocalISOString(start);
+        effectiveEnd = toLocalISOString(now);
       }
 
-      console.log("Solicitando datos históricos con:", { userId, variables, filter, startDateTime, endDateTime });
-      const historicalData = await fetchHistoricalData(userId, variables, filter, startDateTime, endDateTime);
+      console.log("Solicitando datos históricos con:", { 
+        userId, 
+        variables, 
+        filter, 
+        effectiveStart, 
+        effectiveEnd 
+      });
+      
+      const historicalData = await fetchHistoricalData(
+        userId,
+        variables,
+        filter,
+        effectiveStart,
+        effectiveEnd
+      );
+      
       console.log("Datos históricos recibidos en StackedBarHistorico:", historicalData);
 
       if (!historicalData || historicalData.length === 0) {
@@ -123,15 +188,24 @@ const StackedBarHistorico = ({ userId, title, variables, fetchHistoricalData, he
       }
 
       setData({
-        labels: historicalData.map((item) => new Date(item.timestamp).toLocaleString()),
+        labels: historicalData.map((item) => {
+          const date = new Date(item.timestamp);
+          return date.toLocaleString("es-ES", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit"
+          });
+        }),
         datasets: variables
           .slice() // Crear una copia para no modificar el array original
           .sort((a, b) => {
             // Calcular el valor promedio de cada variable para ordenarlas
             const avgA = historicalData.reduce((sum, item) => sum + (item.values[a.value] || 0), 0) / historicalData.length;
             const avgB = historicalData.reduce((sum, item) => sum + (item.values[b.value] || 0), 0) / historicalData.length;
-            // Ordenar de mayor a menor para que los valores más grandes estén en la base
-            return avgB - avgA;
+            // Ordenar de menor a mayor para que los valores más grandes estén arriba
+            return avgA - avgB;
           })
           .map((variable, index) => ({
             label: variable.value,
@@ -291,7 +365,7 @@ const StackedBarHistorico = ({ userId, title, variables, fetchHistoricalData, he
                 gap: 1,
               }}
             >
-              {["1D", "7D", "30D"].map((option) => (
+              {["5m", "30m", "1h", "3h", "12h"].map((option) => (
                 <Button
                   key={option}
                   variant={filter === option ? "contained" : "outlined"}

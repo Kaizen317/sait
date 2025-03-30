@@ -165,7 +165,7 @@ const SidebarOverlay = styled(Box)(({ open }) => ({
   transition: "opacity 0.3s ease",
 }));
 
-function Sidebar({ setIsSidebarOpen }) {
+function Sidebar({ setIsSidebarOpen, onNavigate }) {
   const [isOpen, setIsOpen] = useState(true);
   const [allowedRoutes, setAllowedRoutes] = useState([]);
   const [userType, setUserType] = useState("normal");
@@ -201,6 +201,21 @@ function Sidebar({ setIsSidebarOpen }) {
     setIsOpen(!isOpen);
   };
 
+  const handleNavigation = (path) => {
+    if (onNavigate) {
+      // Si existe la función onNavigate, la usamos para manejar la navegación con advertencia
+      onNavigate(path);
+    } else {
+      // Si no existe, hacemos la navegación normal
+      window.location.href = path;
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.clear();
+    window.location.href = "/login";
+  };
+
   const allRoutes = [
     { path: "/dashboard", icon: <GridView />, text: "Panel Principal" },
     { path: "/reportes", icon: <Assessment />, text: "Informes" },
@@ -211,11 +226,6 @@ function Sidebar({ setIsSidebarOpen }) {
     { path: "/ia", icon: <Psychology />, text: "Asistente IA", isNew: true },
     { path: "/subcuenta", icon: <AccountCircle />, text: "Cuentas" },
   ];
-
-  const handleLogout = () => {
-    localStorage.clear();
-    window.location.href = "/login";
-  };
 
   const renderSidebarContent = () => (
     <>
@@ -275,11 +285,10 @@ function Sidebar({ setIsSidebarOpen }) {
             return (
               <Tooltip key={route.path} title={!isOpen ? route.text : ""} placement="right">
                 <StyledListItem
-                  button
-                  component={Link}
-                  to={route.path}
+                  component="li"
+                  onClick={() => handleNavigation(route.path)}
                   isactive={isActive.toString()}
-                  sx={{ justifyContent: isOpen ? "flex-start" : "center" }}
+                  sx={{ justifyContent: isOpen ? "flex-start" : "center", cursor: 'pointer' }}
                 >
                   <ListItemIcon>{route.icon}</ListItemIcon>
                   {isOpen && (
@@ -314,9 +323,10 @@ function Sidebar({ setIsSidebarOpen }) {
       <Box sx={{ p: isOpen ? 2 : 1 }}>
         {isOpen ? (
           <StyledListItem
-            button
+            component="li"
             onClick={handleLogout}
             sx={{
+              cursor: 'pointer',
               "&:hover": {
                 backgroundColor: "rgba(255, 76, 76, 0.2)",
                 "& .MuiListItemIcon-root": { color: "#ff4c4c" },

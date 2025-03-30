@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import React, { useRef, useEffect } from "react";
 import { Bar } from "react-chartjs-2";
 import PropTypes from "prop-types";
 import "chart.js/auto";
@@ -16,10 +16,25 @@ const BarChartComponent = ({ data, title, height = 700 }) => {
   
   // Función para restablecer el zoom
   const resetZoom = () => {
-    if (chartRef.current && chartRef.current.chart) {
-      chartRef.current.chart.resetZoom();
+    if (chartRef.current) {
+      const chart = chartRef.current;
+      if (chart && chart.resetZoom) {
+        chart.resetZoom();
+      } else if (chart.chart && chart.chart.resetZoom) {
+        chart.chart.resetZoom();
+      }
     }
   };
+  
+  // Efecto para asegurar que el zoom se inicialice correctamente
+  useEffect(() => {
+    return () => {
+      // Cleanup al desmontar
+      if (chartRef.current && chartRef.current.chart) {
+        chartRef.current.chart.destroy();
+      }
+    };
+  }, []);
   
   // Colores profesionales predeterminados para las barras
   const defaultColors = [
@@ -191,6 +206,10 @@ const BarChartComponent = ({ data, title, height = 700 }) => {
               },
               // Configuración del plugin de zoom
               zoom: {
+                limits: {
+                  x: {minRange: 1},
+                  y: {minRange: 1}
+                },
                 pan: {
                   enabled: true,
                   mode: 'xy',

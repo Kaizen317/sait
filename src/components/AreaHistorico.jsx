@@ -46,12 +46,19 @@ ChartJS.register(
   ChartDataLabels
 );
 
+// Función para convertir fechas a formato ISO local
+const toLocalISOString = (date) => {
+  const pad = (num) => num.toString().padStart(2, "0");
+
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+};
+
 const AreaHistorico = ({ userId, title, variables, fetchHistoricalData, height }) => {
   const { mqttData } = useContext(MqttContext);
   const chartRef = useRef(null);
   
   // Estados
-  const [filter, setFilter] = useState("1D");
+  const [filter, setFilter] = useState("5m");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -102,16 +109,74 @@ const AreaHistorico = ({ userId, title, variables, fetchHistoricalData, height }
     setError(null);
 
     try {
-      let startDateTime = null;
-      let endDateTime = null;
+      let effectiveStart, effectiveEnd;
+      const now = new Date();
 
-      if (filter === "custom" && startDate && endDate) {
-        startDateTime = startTime ? `${startDate}T${startTime}:00.000Z` : `${startDate}T00:00:00.000Z`;
-        endDateTime = endTime ? `${endDate}T${endTime}:00.000Z` : `${endDate}T23:59:59.999Z`;
+      if (filter === "custom") {
+        // Si es personalizado, se espera que el usuario haya seleccionado startDate y endDate
+        if (startDate && endDate) {
+          let startDateValue = new Date(startDate);
+          let endDateValue = new Date(endDate);
+  
+          // Combinar con las horas si se han seleccionado
+          if (startTime) {
+            const [sh, sm] = startTime.split(":");
+            startDateValue.setHours(parseInt(sh, 10), parseInt(sm, 10), 0, 0);
+          } else {
+            startDateValue.setHours(0, 0, 0, 0);
+          }
+  
+          if (endTime) {
+            const [eh, em] = endTime.split(":");
+            endDateValue.setHours(parseInt(eh, 10), parseInt(em, 10), 59, 999);
+          } else {
+            endDateValue.setHours(23, 59, 59, 999);
+          }
+  
+          effectiveStart = toLocalISOString(startDateValue);
+          effectiveEnd = toLocalISOString(endDateValue);
+        } else {
+          setError("Por favor selecciona fechas de inicio y fin");
+          setLoading(false);
+          return;
+        }
+      } else if (["5m", "30m", "1h", "3h", "12h"].includes(filter)) {
+        const minutesBack = {
+          "5m": 5,
+          "30m": 30,
+          "1h": 60,
+          "3h": 180,
+          "12h": 720
+        }[filter];
+
+        const start = new Date(now.getTime() - minutesBack * 60 * 1000);
+        effectiveStart = toLocalISOString(start);
+        effectiveEnd = toLocalISOString(now);
+      } else {
+        // fallback por si algún filtro no está contemplado
+        const start = new Date(now);
+        start.setDate(now.getDate() - 1);
+        start.setHours(0, 0, 0, 0);
+        effectiveStart = toLocalISOString(start);
+        effectiveEnd = toLocalISOString(now);
       }
 
-      console.log("Solicitando datos históricos con:", { userId, variables, filter, startDateTime, endDateTime });
-      const historicalData = await fetchHistoricalData(userId, variables, filter, startDateTime, endDateTime);
+      console.log("Solicitando datos históricos con:", { 
+        userId, 
+        variables, 
+        filter, 
+        effectiveStart, 
+        effectiveEnd 
+      });
+      
+      const historicalData = await fetchHistoricalData(
+        userId,
+        variables,
+        filter,
+        effectiveStart,
+        effectiveEnd
+      );
+      
       console.log("Datos históricos recibidos en AreaHistorico:", historicalData);
 
       if (!historicalData || historicalData.length === 0) {
@@ -125,11 +190,20 @@ const AreaHistorico = ({ userId, title, variables, fetchHistoricalData, height }
       }
 
       setData({
-        labels: historicalData.map((item) => new Date(item.timestamp).toLocaleString()),
+        labels: historicalData.map((item) => {
+          const date = new Date(item.timestamp);
+          return date.toLocaleString("es-ES", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit"
+          });
+        }),
         datasets: variables.map((variable, index) => ({
           label: variable.value,
           data: historicalData.map((item) => item.values[variable.value] || 0),
-          backgroundColor: `${variable.color}80`, // Color con transparencia para el área
+          backgroundColor: `${variable.color}99`, // Color con opacidad 60% para el área
           borderColor: variable.color,
           borderWidth: 2,
           pointRadius: 3,
@@ -284,7 +358,7 @@ const AreaHistorico = ({ userId, title, variables, fetchHistoricalData, height }
                 gap: 1,
               }}
             >
-              {["1D", "7D", "30D"].map((option) => (
+              {["5m", "30m", "1h", "3h", "12h"].map((option) => (
                 <Button
                   key={option}
                   variant={filter === option ? "contained" : "outlined"}

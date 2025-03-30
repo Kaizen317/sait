@@ -75,13 +75,19 @@ const initialState = {
 
 const ChartConfigModal = ({ open, onClose, onSave, initialData, userId: propUserId }) => {
   const theme = useTheme();
+  const [activeStep, setActiveStep] = useState(0);
+  
+  // Restaurar la obtención del userId
   const userId = propUserId || localStorage.getItem("userId");
-  const [formState, setFormState] = useState(initialState);
+  
+  const [formState, setFormState] = useState(initialData || initialState);
   const [availableTopics, setAvailableTopics] = useState([]);
-  const [availableValues, setAvailableValues] = useState([]);
+  
+  // Cambiar a un objeto que almacena valores por topic
+  const [topicValuesMap, setTopicValuesMap] = useState({});
+  
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [activeStep, setActiveStep] = useState(0);
   const [showTip, setShowTip] = useState(false);
 
   // Enhanced color palette with gradients
@@ -105,13 +111,30 @@ const ChartConfigModal = ({ open, onClose, onSave, initialData, userId: propUser
 
   useEffect(() => {
     if (open) {
+      // Inicializar el estado del formulario con los datos iniciales o el estado inicial
       setFormState(initialData || initialState);
+      
+      // Cargar los topics disponibles
       fetchTopics();
+      
+      // Inicializar el mapa de valores si hay datos iniciales
+      if (initialData && initialData.variables && initialData.variables.length > 0) {
+        // Para cada variable en los datos iniciales, cargar sus valores
+        initialData.variables.forEach(variable => {
+          if (variable.variable) {
+            console.log(`Cargando valores iniciales para topic: ${variable.variable}`);
+            fetchValuesForTopic(variable.variable);
+          }
+        });
+      }
+      
       const timer = setTimeout(() => setShowTip(true), 1500);
       return () => clearTimeout(timer);
     } else {
       setShowTip(false);
       setActiveStep(0);
+      // Limpiar el mapa de valores al cerrar
+      setTopicValuesMap({});
     }
   }, [open, initialData, userId]);
 
@@ -132,16 +155,61 @@ const ChartConfigModal = ({ open, onClose, onSave, initialData, userId: propUser
   };
 
   const fetchValuesForTopic = async (topic) => {
+    if (!topic) {
+      console.log("No se puede cargar valores para un topic vacío");
+      return;
+    }
+    
+    console.log(`Iniciando carga de valores para topic: ${topic}`);
     setLoading(true);
+    
     try {
       const response = await axios.get(
         `https://uown6aglg5.execute-api.us-east-1.amazonaws.com/getmqttmessages?userId=${userId}`
       );
+      
+      console.log(`Respuesta recibida para userId: ${userId}, total de registros: ${response.data.length}`);
+      
       const recordsForTopic = response.data.filter((record) => record.topic === topic);
-      const lastRecord = recordsForTopic[recordsForTopic.length - 1];
-      setAvailableValues(lastRecord?.values ? Object.keys(lastRecord.values) : []);
+      console.log(`Registros encontrados para topic ${topic}: ${recordsForTopic.length}`);
+      
+      // Verificar si hay registros para este topic
+      if (recordsForTopic.length > 0) {
+        // Combinar todas las variables de todos los mensajes para este topic
+        const allValues = new Set();
+        
+        // Recorrer todos los registros para este topic y recopilar todas las variables
+        recordsForTopic.forEach(record => {
+          if (record?.values) {
+            Object.keys(record.values).forEach(key => {
+              allValues.add(key);
+            });
+          }
+        });
+        
+        // Convertir el Set a un array y ordenarlo alfabéticamente
+        const values = Array.from(allValues).sort((a, b) => a.localeCompare(b));
+        console.log(`Valores combinados y ordenados para ${topic}:`, values);
+        
+        // Actualizar el mapa de valores por topic
+        setTopicValuesMap(prevMap => {
+          const newMap = {
+            ...prevMap,
+            [topic]: values
+          };
+          console.log("Mapa de valores actualizado:", newMap);
+          return newMap;
+        });
+      } else {
+        console.log(`No se encontraron registros para el topic: ${topic}`);
+        setTopicValuesMap(prevMap => ({
+          ...prevMap,
+          [topic]: []
+        }));
+      }
     } catch (error) {
-      setError("Error al cargar los valores.");
+      console.error("Error al cargar los valores:", error);
+      setError(`Error al cargar los valores para ${topic}: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -156,17 +224,31 @@ const ChartConfigModal = ({ open, onClose, onSave, initialData, userId: propUser
     const updatedVariables = formState.variables.map((variable, i) => {
       if (i === index) {
         const updatedVariable = { ...variable, [field]: value };
+        
+        // Si se cambia el topic, resetear el valor seleccionado
+        if (field === "variable") {
+          updatedVariable.value = "";
+        }
+        
+        // Actualizar color y colores derivados si se cambia el color
         if (field === "color") {
           const rgbaColor = hexToRgba(value, 0.7);
           updatedVariable.backgroundColor = rgbaColor;
           updatedVariable.borderColor = value;
         }
+        
         return updatedVariable;
       }
       return variable;
     });
+    
     setFormState((prev) => ({ ...prev, variables: updatedVariables }));
-    if (field === "variable") fetchValuesForTopic(value);
+    
+    // Si se cambió el topic, cargar los valores disponibles para ese topic
+    if (field === "variable" && value) {
+      console.log(`Cargando valores para el topic: ${value}`);
+      fetchValuesForTopic(value);
+    }
   };
 
   const hexToRgba = (hex, alpha = 1) => {
@@ -571,13 +653,17 @@ const ChartConfigModal = ({ open, onClose, onSave, initialData, userId: propUser
                     <FormControl fullWidth>
                       <InputLabel sx={{ "&.Mui-focused": { color: variable.color } }}>Topic</InputLabel>
                       <Select
-                        value={variable.variable}
+                        value={variable.variable || ""}
                         onChange={(e) => handleVariableChange(index, "variable", e.target.value)}
                         sx={{
                           borderRadius: 3,
                           "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: variable.color, borderWidth: 2 },
                         }}
+                        displayEmpty
                       >
+                        <MenuItem value="" disabled>
+                          <em>Selecciona un topic</em>
+                        </MenuItem>
                         {availableTopics.map((topic) => (
                           <MenuItem key={topic} value={topic}>
                             {topic}
@@ -590,19 +676,26 @@ const ChartConfigModal = ({ open, onClose, onSave, initialData, userId: propUser
                     <FormControl fullWidth>
                       <InputLabel sx={{ "&.Mui-focused": { color: variable.color } }}>Valor</InputLabel>
                       <Select
-                        value={variable.value}
+                        value={variable.value || ""}
                         onChange={(e) => handleVariableChange(index, "value", e.target.value)}
                         disabled={!variable.variable}
                         sx={{
                           borderRadius: 3,
                           "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: variable.color, borderWidth: 2 },
                         }}
+                        displayEmpty
                       >
-                        {availableValues.map((value) => (
-                          <MenuItem key={value} value={value}>
-                            {value}
-                          </MenuItem>
-                        ))}
+                        <MenuItem value="" disabled>
+                          <em>Selecciona un valor</em>
+                        </MenuItem>
+                        {/* Usar los valores del topic específico del mapa */}
+                        {variable.variable && topicValuesMap[variable.variable] && 
+                          topicValuesMap[variable.variable].map((value) => (
+                            <MenuItem key={value} value={value}>
+                              {value}
+                            </MenuItem>
+                          ))
+                        }
                       </Select>
                     </FormControl>
                   </Grid>
@@ -635,7 +728,20 @@ const ChartConfigModal = ({ open, onClose, onSave, initialData, userId: propUser
                       type="color"
                       value={variable.color}
                       onChange={(e) => handleVariableChange(index, "color", e.target.value)}
-                      sx={{ "& .MuiOutlinedInput-notchedOutline": { border: "none" }, width: "100%" }}
+                      sx={{ 
+                        width: "100%",
+                        "& .MuiOutlinedInput-root": { 
+                          border: "none" 
+                        },
+                        "& .MuiOutlinedInput-input": {
+                          padding: "10px",
+                          height: "40px",
+                          cursor: "pointer"
+                        },
+                        "& .MuiOutlinedInput-notchedOutline": { 
+                          border: "none" 
+                        }
+                      }}
                     />
                   </Grid>
                   <Grid item xs={6} md={1}>
@@ -1059,7 +1165,7 @@ const ChartConfigModal = ({ open, onClose, onSave, initialData, userId: propUser
           >
             <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
               <Avatar sx={{ bgcolor: "white", color: "#006875", width: 48, height: 48 }}>
-                <DataUsageIcon fontSize="large" />
+                <DataUsageIcon />
               </Avatar>
               <Box>
                 <Typography variant="h5" sx={{ fontWeight: 700, letterSpacing: 0.5 }}>

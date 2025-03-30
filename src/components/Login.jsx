@@ -40,11 +40,11 @@ import {
 
 // Definición de paleta de colores profesional
 const COLORS = {
-  primary: "#0d904f",         // Verde principal más oscuro y profesional
-  primaryLight: "#27b364",    // Verde claro para hover y efectos
-  primaryDark: "#086b3a",     // Verde más oscuro para estados activos
-  secondary: "#006875",       // Azul oscuro
-  secondaryLight: "#0095a8",  // Azul claro para acentos
+  primary: "#006875",         // Azul principal (color de la navbar)
+  primaryLight: "#338c98",    // Azul claro para hover y efectos
+  primaryDark: "#004b55",     // Azul más oscuro para estados activos
+  secondary: "#0095a8",       // Azul secundario
+  secondaryLight: "#33aab9",  // Azul claro para acentos
   text: "#1a2127",            // Texto oscuro para mejor legibilidad
   textSecondary: "#546e7a",   // Texto secundario
   background: "#ffffff",      // Fondo blanco
@@ -108,7 +108,7 @@ const PrimaryButton = styled(Button)(({ theme }) => ({
   fontWeight: 600,
   textTransform: "none",
   fontSize: "1rem",
-  boxShadow: "0 4px 12px rgba(13, 144, 79, 0.2)",
+  boxShadow: "0 4px 12px rgba(0, 104, 117, 0.2)",
   transition: "all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)",
   background: `linear-gradient(45deg, ${COLORS.primary} 0%, ${COLORS.primaryLight} 100%)`,
   letterSpacing: "0.5px",
@@ -117,13 +117,13 @@ const PrimaryButton = styled(Button)(({ theme }) => ({
     fontSize: "0.9rem", // Reducir tamaño de fuente
   },
   "&:hover": {
-    boxShadow: "0 6px 16px rgba(13, 144, 79, 0.25)",
+    boxShadow: "0 6px 16px rgba(0, 104, 117, 0.25)",
     background: `linear-gradient(45deg, ${COLORS.primaryDark} 0%, ${COLORS.primary} 100%)`,
     transform: "translateY(-2px)"
   },
   "&:active": {
     transform: "translateY(1px)",
-    boxShadow: "0 2px 8px rgba(13, 144, 79, 0.2)"
+    boxShadow: "0 2px 8px rgba(0, 104, 117, 0.2)"
   },
   "&.Mui-disabled": {
     background: alpha(COLORS.primary, 0.5),
@@ -544,35 +544,59 @@ function Login({ setUserId }) {
         />
         {/* Partículas flotantes */}
         <Box sx={{ position: "absolute", width: "100%", height: "100%", pointerEvents: "none" }}>
-          {[...Array(20)].map((_, i) => (
+          {[...Array(50)].map((_, i) => (
             <Box
               key={i}
               sx={{
                 position: "absolute",
-                width: `${2 + Math.random() * 5}px`,
-                height: `${2 + Math.random() * 5}px`,
-                background: `rgba(255,255,255,${0.2 + Math.random() * 0.3})`,
+                width: `${1 + Math.random() * 6}px`,
+                height: `${1 + Math.random() * 6}px`,
+                background: `rgba(255,255,255,${0.3 + Math.random() * 0.5})`,
                 borderRadius: "50%",
-                boxShadow: "0 0 10px rgba(255,255,255,0.5)",
+                boxShadow: `0 0 ${5 + Math.random() * 10}px rgba(255,255,255,0.8)`,
                 left: `${Math.random() * 100}%`,
                 top: `${Math.random() * 100}%`,
-                animation: `float ${10 + Math.random() * 15}s linear infinite ${Math.random() * 5}s`,
+                animation: `float ${10 + Math.random() * 20}s linear infinite ${Math.random() * 5}s, 
+                           twinkle ${3 + Math.random() * 5}s ease-in-out infinite ${Math.random() * 3}s`,
                 "@keyframes float": {
                   "0%": {
-                    transform: "translate(0, 0) scale(1)",
-                    opacity: 0
+                    transform: `translateY(0px) translateX(0px)`,
                   },
-                  "10%": {
-                    opacity: 1
-                  },
-                  "90%": {
-                    opacity: 1
+                  "50%": {
+                    transform: `translateY(${-10 - Math.random() * 20}px) translateX(${5 + Math.random() * 10}px)`,
                   },
                   "100%": {
-                    transform: `translate(${Math.random() * 100 - 50}px, ${Math.random() * 100 - 50}px) scale(0)`,
-                    opacity: 0
-                  }
-                }
+                    transform: `translateY(0px) translateX(0px)`,
+                  },
+                },
+                "@keyframes twinkle": {
+                  "0%": { opacity: 0.3 },
+                  "50%": { opacity: 1 },
+                  "100%": { opacity: 0.3 },
+                },
+              }}
+            />
+          ))}
+          {/* Estrellas más grandes y brillantes */}
+          {[...Array(10)].map((_, i) => (
+            <Box
+              key={`big-star-${i}`}
+              sx={{
+                position: "absolute",
+                width: `${3 + Math.random() * 4}px`,
+                height: `${3 + Math.random() * 4}px`,
+                background: `rgba(255,255,255,0.9)`,
+                borderRadius: "50%",
+                boxShadow: `0 0 ${10 + Math.random() * 15}px rgba(255,255,255,0.9), 
+                           0 0 ${20 + Math.random() * 30}px rgba(255,255,255,0.5)`,
+                left: `${Math.random() * 100}%`,
+                top: `${Math.random() * 100}%`,
+                animation: `bigStarTwinkle ${4 + Math.random() * 6}s ease-in-out infinite ${Math.random() * 3}s`,
+                "@keyframes bigStarTwinkle": {
+                  "0%": { opacity: 0.5, transform: "scale(0.8)" },
+                  "50%": { opacity: 1, transform: "scale(1.2)" },
+                  "100%": { opacity: 0.5, transform: "scale(0.8)" },
+                },
               }}
             />
           ))}
@@ -1331,6 +1355,490 @@ function Login({ setUserId }) {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Efecto de visualización de datos 3D avanzado */}
+      <Box sx={{ 
+        position: "absolute", 
+        width: "100%", 
+        height: "100%", 
+        perspective: "1200px",
+        transformStyle: "preserve-3d",
+        pointerEvents: "none",
+        overflow: "hidden",
+        background: "linear-gradient(to bottom, rgba(0,0,0,0.9), rgba(0,15,30,0.95))"
+      }}>
+        {/* Cuadrícula principal */}
+        <Box sx={{ 
+          position: "absolute", 
+          width: "300%", 
+          height: "300%",
+          top: "-100%",
+          left: "-100%", 
+          backgroundImage: `
+            linear-gradient(rgba(0, 104, 117, 0.15) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(0, 104, 117, 0.15) 1px, transparent 1px)
+          `,
+          backgroundSize: "40px 40px",
+          transform: "rotateX(60deg) translateZ(-100px)",
+          animation: "gridMove 30s linear infinite",
+          "@keyframes gridMove": {
+            "0%": { transform: "rotateX(60deg) translateZ(-100px) translateY(0%)" },
+            "100%": { transform: "rotateX(60deg) translateZ(-100px) translateY(40px)" }
+          }
+        }}/>
+
+        {/* Cuadrícula secundaria */}
+        <Box sx={{ 
+          position: "absolute", 
+          width: "300%", 
+          height: "300%",
+          top: "-100%",
+          left: "-100%", 
+          backgroundImage: `
+            linear-gradient(rgba(0, 104, 117, 0.08) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(0, 104, 117, 0.08) 1px, transparent 1px)
+          `,
+          backgroundSize: "10px 10px",
+          transform: "rotateX(60deg) translateZ(-50px)",
+          animation: "gridMove2 20s linear infinite",
+          "@keyframes gridMove2": {
+            "0%": { transform: "rotateX(60deg) translateZ(-50px) translateY(0%)" },
+            "100%": { transform: "rotateX(60deg) translateZ(-50px) translateY(10px)" }
+          }
+        }}/>
+
+        {/* Ejes X, Y, Z */}
+        <Box sx={{
+          position: "absolute",
+          width: "150%",
+          height: "150%",
+          top: "-25%",
+          left: "-25%",
+          transform: "rotateX(60deg) translateZ(-75px)",
+          "& .axis": {
+            position: "absolute",
+            background: "rgba(255, 255, 255, 0.3)",
+            transformOrigin: "0 0"
+          },
+          "& .x-axis": {
+            width: "100%",
+            height: "2px",
+            top: "50%",
+            left: 0,
+          },
+          "& .y-axis": {
+            width: "2px",
+            height: "100%",
+            top: 0,
+            left: "50%",
+          },
+          "& .z-axis": {
+            width: "2px",
+            height: "30%",
+            top: "50%",
+            left: "50%",
+            transform: "rotateX(-60deg)",
+            background: "linear-gradient(to top, rgba(255,255,255,0.3), rgba(255,255,255,0))"
+          }
+        }}>
+          <Box className="axis x-axis" />
+          <Box className="axis y-axis" />
+          <Box className="axis z-axis" />
+        </Box>
+
+        {/* Puntos de datos (nodos) - Reducidos para mejorar rendimiento */}
+        {[...Array(60)].map((_, i) => (
+          <Box
+            key={`data-point-${i}`}
+            sx={{
+              position: "absolute",
+              width: `${2 + Math.random() * 5}px`,
+              height: `${2 + Math.random() * 5}px`,
+              background: i % 5 === 0 
+                ? "rgba(0, 104, 117, 0.9)" // Azul (primario - color navbar)
+                : i % 3 === 0 
+                  ? "rgba(51, 140, 152, 0.9)" // Azul claro (secundario)
+                  : i % 7 === 0
+                    ? "rgba(255, 180, 0, 0.9)" // Amarillo (alertas)
+                    : "rgba(255, 255, 255, 0.9)", // Blanco (default)
+              borderRadius: "50%",
+              boxShadow: i % 4 === 0 
+                ? `0 0 8px rgba(0, 104, 117, 0.8)` 
+                : i % 7 === 0
+                  ? `0 0 8px rgba(255, 180, 0, 0.8)`
+                  : `0 0 5px rgba(255, 255, 255, 0.6)`,
+              left: `${Math.random() * 100}%`,
+              top: `${Math.random() * 100}%`,
+              zIndex: 10,
+              animation: `dataPoint ${5 + Math.random() * 10}s ease-in-out infinite ${Math.random() * 5}s`,
+              "@keyframes dataPoint": {
+                "0%": { opacity: 0.3, transform: `scale(0.8) translateZ(${Math.random() * 50}px)` },
+                "50%": { opacity: 1, transform: `scale(1.2) translateZ(${50 + Math.random() * 100}px)` },
+                "100%": { opacity: 0.3, transform: `scale(0.8) translateZ(${Math.random() * 50}px)` },
+              },
+            }}
+          />
+        ))}
+
+        {/* Líneas de conexión entre puntos de datos - Reducidas para mejorar rendimiento */}
+        {[...Array(30)].map((_, i) => {
+          const startX = Math.random() * 100;
+          const startY = Math.random() * 100;
+          const endX = startX + (Math.random() * 40 - 20);
+          const endY = startY + (Math.random() * 40 - 20);
+          const isHighlighted = i % 5 === 0;
+          const isAlert = i % 11 === 0;
+          
+          return (
+            <Box
+              key={`data-line-${i}`}
+              sx={{
+                position: "absolute",
+                width: `${Math.sqrt(Math.pow(endX - startX, 2) + Math.pow(endY - startY, 2))}%`,
+                height: "1px",
+                background: isAlert
+                  ? "linear-gradient(90deg, rgba(255, 180, 0, 0.7), rgba(255, 180, 0, 0.1))"
+                  : isHighlighted 
+                    ? "linear-gradient(90deg, rgba(0, 104, 117, 0.7), rgba(0, 104, 117, 0.1))" 
+                    : "linear-gradient(90deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.05))",
+                left: `${Math.min(startX, endX)}%`,
+                top: `${Math.min(startY, endY)}%`,
+                transform: `rotate(${Math.atan2(endY - startY, endX - startX) * (180 / Math.PI)}deg)`,
+                transformOrigin: "0 0",
+                opacity: isAlert ? 0.9 : isHighlighted ? 0.8 : 0.3,
+                animation: `dataLine ${8 + Math.random() * 12}s ease-in-out infinite ${Math.random() * 5}s`,
+                "@keyframes dataLine": {
+                  "0%": { opacity: isAlert ? 0.5 : 0.1, transform: `rotate(${Math.atan2(endY - startY, endX - startX) * (180 / Math.PI)}deg) scaleX(0.8)` },
+                  "50%": { opacity: isAlert ? 0.9 : isHighlighted ? 0.8 : 0.4, transform: `rotate(${Math.atan2(endY - startY, endX - startX) * (180 / Math.PI)}deg) scaleX(1.1)` },
+                  "100%": { opacity: isAlert ? 0.5 : 0.1, transform: `rotate(${Math.atan2(endY - startY, endX - startX) * (180 / Math.PI)}deg) scaleX(0.8)` },
+                },
+              }}
+            />
+          );
+        })}
+
+        {/* Gráficos de datos flotantes - Reducidos para mejorar rendimiento */}
+        {[...Array(8)].map((_, i) => {
+          const width = 40 + Math.random() * 80;
+          const height = 20 + Math.random() * 40;
+          const graphType = i % 3; // 0: bar, 1: line, 2: pie
+          
+          return (
+            <Box
+              key={`data-graph-${i}`}
+              sx={{
+                position: "absolute",
+                width: `${width}px`,
+                height: `${height}px`,
+                left: `${Math.random() * 80 + 10}%`,
+                top: `${Math.random() * 80 + 10}%`,
+                opacity: 0.2,
+                transform: `rotateX(${Math.random() * 40 + 30}deg) rotateY(${Math.random() * 40 - 20}deg) translateZ(${Math.random() * 100}px)`,
+                animation: `floatGraph ${15 + Math.random() * 20}s ease-in-out infinite ${Math.random() * 10}s`,
+                "@keyframes floatGraph": {
+                  "0%": { 
+                    opacity: 0.1, 
+                    transform: `rotateX(${Math.random() * 40 + 30}deg) rotateY(${Math.random() * 40 - 20}deg) translateZ(${Math.random() * 50}px)` 
+                  },
+                  "50%": { 
+                    opacity: 0.4, 
+                    transform: `rotateX(${Math.random() * 40 + 30}deg) rotateY(${Math.random() * 40 - 20}deg) translateZ(${50 + Math.random() * 100}px)` 
+                  },
+                  "100%": { 
+                    opacity: 0.1, 
+                    transform: `rotateX(${Math.random() * 40 + 30}deg) rotateY(${Math.random() * 40 - 20}deg) translateZ(${Math.random() * 50}px)` 
+                  },
+                },
+              }}
+            >
+              {graphType === 0 ? (
+                // Gráfico de barras
+                [...Array(5)].map((_, j) => (
+                  <Box
+                    key={`bar-${i}-${j}`}
+                    sx={{
+                      position: "absolute",
+                      bottom: 0,
+                      left: `${j * (100 / 5)}%`,
+                      width: `${80 / 5}%`,
+                      height: `${10 + Math.random() * (height - 10)}px`,
+                      background: j % 2 === 0 
+                        ? "rgba(0, 104, 117, 0.7)" // Azul (primario - color navbar)
+                        : "rgba(51, 140, 152, 0.7)", // Azul claro (secundario)
+                      borderRadius: "2px 2px 0 0",
+                    }}
+                  />
+                ))
+              ) : graphType === 1 ? (
+                // Gráfico de línea
+                <Box
+                  sx={{
+                    position: "absolute",
+                    width: "100%",
+                    height: "100%",
+                    "&::before": {
+                      content: '""',
+                      position: "absolute",
+                      width: "100%",
+                      height: "2px",
+                      background: "rgba(0, 104, 117, 0.7)",
+                      top: `${Math.random() * 100}%`,
+                      clipPath: `polygon(
+                        0% 0%, 
+                        ${10 + Math.random() * 10}% ${50 + Math.random() * 50}%, 
+                        ${30 + Math.random() * 10}% ${Math.random() * 50}%, 
+                        ${50 + Math.random() * 10}% ${70 + Math.random() * 30}%, 
+                        ${70 + Math.random() * 10}% ${30 + Math.random() * 30}%, 
+                        100% ${Math.random() * 100}%, 
+                        100% 0%
+                      )`,
+                    }
+                  }}
+                />
+              ) : (
+                // Gráfico circular
+                <Box
+                  sx={{
+                    position: "absolute",
+                    width: "100%",
+                    height: "100%",
+                    borderRadius: "50%",
+                    overflow: "hidden",
+                    background: "rgba(30, 30, 30, 0.6)",
+                    "&::before": {
+                      content: '""',
+                      position: "absolute",
+                      width: "100%",
+                      height: "100%",
+                      background: "conic-gradient(rgba(0, 104, 117, 0.7) 0% 25%, rgba(51, 140, 152, 0.7) 25% 55%, rgba(255, 180, 0, 0.7) 55% 70%, rgba(255, 255, 255, 0.5) 70% 100%)",
+                    }
+                  }}
+                />
+              )}
+            </Box>
+          );
+        })}
+
+        {/* Indicadores numéricos flotantes - Reducidos para mejorar rendimiento */}
+        {[...Array(12)].map((_, i) => (
+          <Box
+            key={`data-number-${i}`}
+            sx={{
+              position: "absolute",
+              left: `${Math.random() * 90 + 5}%`,
+              top: `${Math.random() * 90 + 5}%`,
+              color: i % 5 === 0 
+                ? "rgba(0, 104, 117, 0.8)" // Azul (primario - color navbar)
+                : i % 7 === 0
+                  ? "rgba(255, 180, 0, 0.8)"
+                  : "rgba(255, 255, 255, 0.6)",
+              fontSize: `${Math.random() * 4 + 8}px`,
+              fontFamily: "monospace",
+              fontWeight: "bold",
+              textShadow: i % 5 === 0 
+                ? "0 0 5px rgba(0, 104, 117, 0.8)" 
+                : i % 7 === 0
+                  ? "0 0 5px rgba(255, 180, 0, 0.8)"
+                  : "0 0 5px rgba(255, 255, 255, 0.5)",
+              opacity: 0.5,
+              animation: `floatNumber ${10 + Math.random() * 15}s ease-in-out infinite ${Math.random() * 5}s`,
+              "@keyframes floatNumber": {
+                "0%": { opacity: 0.2, transform: `translateZ(${Math.random() * 50}px)` },
+                "50%": { opacity: 0.7, transform: `translateZ(${50 + Math.random() * 100}px)` },
+                "100%": { opacity: 0.2, transform: `translateZ(${Math.random() * 50}px)` },
+              },
+            }}
+          >
+            {i % 8 === 0 
+              ? `${(Math.random() * 100).toFixed(2)}%` 
+              : i % 6 === 0
+                ? `${Math.floor(Math.random() * 24)}:${Math.floor(Math.random() * 60).toString().padStart(2, '0')}`
+                : (Math.random() > 0.5 
+                  ? (Math.random() * 100).toFixed(1) 
+                  : (Math.random() * 1000).toFixed(0))}
+          </Box>
+        ))}
+
+        {/* Círculos de pulso (como ondas de radar) - Reducidos para mejorar rendimiento */}
+        {[...Array(6)].map((_, i) => (
+          <Box
+            key={`pulse-circle-${i}`}
+            sx={{
+              position: "absolute",
+              left: `${Math.random() * 90 + 5}%`,
+              top: `${Math.random() * 90 + 5}%`,
+              width: "4px",
+              height: "4px",
+              borderRadius: "50%",
+              background: i % 3 === 0 
+                ? "rgba(0, 104, 117, 0.9)" // Azul (primario - color navbar)
+                : i % 5 === 0
+                  ? "rgba(255, 180, 0, 0.9)"
+                  : "rgba(51, 140, 152, 0.9)", // Azul claro (secundario)
+              boxShadow: i % 3 === 0 
+                ? "0 0 8px rgba(0, 104, 117, 0.8)" 
+                : i % 5 === 0
+                  ? "0 0 8px rgba(255, 180, 0, 0.8)"
+                  : "0 0 8px rgba(51, 140, 152, 0.8)",
+              "&::before": {
+                content: '""',
+                position: "absolute",
+                top: "50%",
+                left: "50%",
+                width: "4px",
+                height: "4px",
+                borderRadius: "50%",
+                background: "transparent",
+                border: i % 3 === 0 
+                  ? "1px solid rgba(0, 104, 117, 0.5)" 
+                  : i % 5 === 0
+                    ? "1px solid rgba(255, 180, 0, 0.5)"
+                    : "1px solid rgba(51, 140, 152, 0.5)",
+                transform: "translate(-50%, -50%)",
+                animation: "pulseWave 4s ease-out infinite",
+              },
+              "&::after": {
+                content: '""',
+                position: "absolute",
+                top: "50%",
+                left: "50%",
+                width: "4px",
+                height: "4px",
+                borderRadius: "50%",
+                background: "transparent",
+                border: i % 3 === 0 
+                  ? "1px solid rgba(0, 104, 117, 0.3)" 
+                  : i % 5 === 0
+                    ? "1px solid rgba(255, 180, 0, 0.3)"
+                    : "1px solid rgba(51, 140, 152, 0.3)",
+                transform: "translate(-50%, -50%)",
+                animation: "pulseWave 4s ease-out 2s infinite",
+              },
+              "@keyframes pulseWave": {
+                "0%": { width: "4px", height: "4px", opacity: 1 },
+                "100%": { width: "50px", height: "50px", opacity: 0 },
+              },
+            }}
+          />
+        ))}
+
+        {/* Indicadores de gauge - Reducidos para mejorar rendimiento */}
+        {[...Array(4)].map((_, i) => {
+          const gaugeValue = Math.random();
+          return (
+            <Box
+              key={`gauge-${i}`}
+              sx={{
+                position: "absolute",
+                width: `${30 + Math.random() * 20}px`,
+                height: `${15 + Math.random() * 10}px`,
+                left: `${Math.random() * 80 + 10}%`,
+                top: `${Math.random() * 80 + 10}%`,
+                borderRadius: "3px",
+                background: "rgba(30, 30, 30, 0.6)",
+                overflow: "hidden",
+                opacity: 0.4,
+                animation: `floatGauge ${12 + Math.random() * 18}s ease-in-out infinite ${Math.random() * 8}s`,
+                "@keyframes floatGauge": {
+                  "0%": { opacity: 0.2, transform: `translateZ(${Math.random() * 50}px)` },
+                  "50%": { opacity: 0.6, transform: `translateZ(${50 + Math.random() * 100}px)` },
+                  "100%": { opacity: 0.2, transform: `translateZ(${Math.random() * 50}px)` },
+                },
+              }}
+            >
+              <Box
+                sx={{
+                  position: "absolute",
+                  height: "100%",
+                  width: `${gaugeValue * 100}%`,
+                  background: gaugeValue > 0.7 
+                    ? "rgba(255, 180, 0, 0.8)" 
+                    : gaugeValue > 0.4 
+                      ? "rgba(0, 104, 117, 0.8)" // Azul (primario - color navbar)
+                      : "rgba(51, 140, 152, 0.8)", // Azul claro (secundario)
+                  transition: "width 1s ease-in-out",
+                }}
+              />
+            </Box>
+          );
+        })}
+
+        {/* Tablas de datos - Reducidas para mejorar rendimiento */}
+        {[...Array(3)].map((_, i) => (
+          <Box
+            key={`table-${i}`}
+            sx={{
+              position: "absolute",
+              width: `${60 + Math.random() * 40}px`,
+              height: `${40 + Math.random() * 30}px`,
+              left: `${Math.random() * 80 + 10}%`,
+              top: `${Math.random() * 80 + 10}%`,
+              background: "rgba(30, 30, 30, 0.5)",
+              borderRadius: "3px",
+              display: "flex",
+              flexDirection: "column",
+              opacity: 0.3,
+              transform: `rotateX(${Math.random() * 40 + 30}deg) rotateY(${Math.random() * 40 - 20}deg) translateZ(${Math.random() * 100}px)`,
+              animation: `floatTable ${15 + Math.random() * 20}s ease-in-out infinite ${Math.random() * 10}s`,
+              "@keyframes floatTable": {
+                "0%": { 
+                  opacity: 0.1, 
+                  transform: `rotateX(${Math.random() * 40 + 30}deg) rotateY(${Math.random() * 40 - 20}deg) translateZ(${Math.random() * 50}px)` 
+                },
+                "50%": { 
+                  opacity: 0.4, 
+                  transform: `rotateX(${Math.random() * 40 + 30}deg) rotateY(${Math.random() * 40 - 20}deg) translateZ(${50 + Math.random() * 100}px)` 
+                },
+                "100%": { 
+                  opacity: 0.1, 
+                  transform: `rotateX(${Math.random() * 40 + 30}deg) rotateY(${Math.random() * 40 - 20}deg) translateZ(${Math.random() * 50}px)` 
+                },
+              },
+            }}
+          >
+            {/* Filas de la tabla */}
+            {[...Array(4)].map((_, j) => (
+              <Box
+                key={`table-row-${i}-${j}`}
+                sx={{
+                  width: "100%",
+                  height: `${100 / 4}%`,
+                  borderBottom: j < 3 ? "1px solid rgba(255, 255, 255, 0.2)" : "none",
+                  display: "flex",
+                }}
+              >
+                {/* Columnas de la tabla */}
+                {[...Array(3)].map((_, k) => (
+                  <Box
+                    key={`table-cell-${i}-${j}-${k}`}
+                    sx={{
+                      width: `${100 / 3}%`,
+                      height: "100%",
+                      borderRight: k < 2 ? "1px solid rgba(255, 255, 255, 0.2)" : "none",
+                      background: j === 0 ? "rgba(0, 104, 117, 0.3)" : "transparent",
+                    }}
+                  />
+                ))}
+              </Box>
+            ))}
+          </Box>
+        ))}
+
+        {/* Líneas de cuadrícula en primer plano */}
+        <Box sx={{ 
+          position: "absolute", 
+          width: "200%", 
+          height: "200%",
+          top: "-50%",
+          left: "-50%", 
+          backgroundImage: `
+            radial-gradient(circle, rgba(255, 255, 255, 0.03) 1px, transparent 1px)
+          `,
+          backgroundSize: "20px 20px",
+          transform: "translateZ(50px)",
+          pointerEvents: "none"
+        }}/>
+      </Box>
 
       {/* Snackbar */}
       <Snackbar

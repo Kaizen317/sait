@@ -228,9 +228,13 @@ const DevicesList = () => {
   }, [userId]);
 
   const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    // Eliminar espacios del valor ingresado
+    const valueWithoutSpaces = value.replace(/\s+/g, '');
+    
     setNewDevice({
       ...newDevice,
-      [e.target.name]: e.target.value,
+      [name]: valueWithoutSpaces,
     });
   };
 

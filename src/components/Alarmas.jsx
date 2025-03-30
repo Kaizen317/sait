@@ -61,6 +61,7 @@ const theme = {
 const StyledTableContainer = styled(TableContainer)(({ theme }) => ({
   borderRadius: "12px",
   boxShadow: "0 4px 20px rgba(0, 0, 0, 0.05)",
+  overflowX: "auto",
   "& .MuiTable-root": {
     borderCollapse: "separate",
     borderSpacing: "0 12px",
@@ -76,6 +77,10 @@ const StyledTableContainer = styled(TableContainer)(({ theme }) => ({
     border: "none",
     padding: "16px",
     fontSize: "0.875rem",
+    [theme.breakpoints.down('sm')]: {
+      padding: "8px",
+      fontSize: "0.75rem",
+    },
   },
   "& .MuiTableHead-root .MuiTableRow-root": {
     backgroundColor: "rgba(76, 175, 80, 0.1)",
@@ -83,6 +88,39 @@ const StyledTableContainer = styled(TableContainer)(({ theme }) => ({
   "& .MuiTableHead-root .MuiTableCell-root": {
     color: theme.palette.text.secondary,
     fontWeight: 600,
+  },
+}));
+
+const AlarmCard = styled(Paper)(({ theme, isHighlighted }) => ({
+  borderRadius: "12px",
+  padding: "16px",
+  marginBottom: "16px",
+  boxShadow: "0 4px 12px rgba(0, 0, 0, 0.05)",
+  backgroundColor: theme.palette.background.paper,
+  transition: "all 0.3s ease",
+  ...(isHighlighted && {
+    animation: "highlight 2s infinite",
+    "@keyframes highlight": {
+      "0%": { backgroundColor: "rgba(255, 193, 7, 0.1)" },
+      "50%": { backgroundColor: "rgba(255, 193, 7, 0.2)" },
+      "100%": { backgroundColor: "rgba(255, 193, 7, 0.1)" },
+    },
+  }),
+}));
+
+const AlarmProperty = styled(Box)(({ theme }) => ({
+  display: "flex",
+  justifyContent: "space-between",
+  marginBottom: "8px",
+  "& .label": {
+    color: theme.palette.text.secondary,
+    fontWeight: 500,
+    fontSize: "0.75rem",
+  },
+  "& .value": {
+    color: theme.palette.text.primary,
+    fontWeight: 600,
+    fontSize: "0.875rem",
   },
 }));
 
@@ -807,6 +845,65 @@ const Alarmas = () => {
     );
   };
 
+  const renderMobileAlarmCard = (alarm, index) => {
+    const isHighlighted = highlightedAlarms.includes(alarm.alarmId);
+    
+    return (
+      <AlarmCard key={index} isHighlighted={isHighlighted}>
+        <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
+          {alarm.name}
+        </Typography>
+        
+        <AlarmProperty>
+          <span className="label">Dispositivo:</span>
+          <span className="value">{alarm.deviceName}</span>
+        </AlarmProperty>
+        
+        <AlarmProperty>
+          <span className="label">Subtema:</span>
+          <span className="value">{alarm.subtopic}</span>
+        </AlarmProperty>
+        
+        <AlarmProperty>
+          <span className="label">Variable:</span>
+          <span className="value">{alarm.variable}</span>
+        </AlarmProperty>
+        
+        <AlarmProperty>
+          <span className="label">Condición:</span>
+          <span className="value">{alarm.condition}</span>
+        </AlarmProperty>
+        
+        <AlarmProperty>
+          <span className="label">Valor:</span>
+          <span className="value">{alarm.value}</span>
+        </AlarmProperty>
+        
+        <AlarmProperty>
+          <span className="label">Tiempo (s):</span>
+          <span className="value">{alarm.waitTime}</span>
+        </AlarmProperty>
+        
+        <AlarmProperty>
+          <span className="label">Umbral (%):</span>
+          <span className="value">{alarm.threshold}</span>
+        </AlarmProperty>
+        
+        <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2 }}>
+          <ActionButton
+            size="small"
+            variant="outlined"
+            color="secondary"
+            onClick={() => handleOpenDialog(alarm)}
+            startIcon={<DeleteIcon />}
+          >
+            Eliminar
+          </ActionButton>
+        </Box>
+      </AlarmCard>
+    );
+  };
+
   const AlarmNotificationComponent = ({ alarm }) => {
     const severity = alarm.severity.toLowerCase();
     const [show, setShow] = useState(true);
@@ -968,12 +1065,16 @@ const Alarmas = () => {
           backgroundColor: theme.palette.background.default,
           minHeight: "calc(100vh - 64px)",
           overflowY: "auto",
+          [theme.breakpoints.down('sm')]: {
+            marginLeft: "0",
+            padding: "16px",
+          },
         }}
       >
         <Box
           sx={{
             backgroundColor: theme.palette.background.paper,
-            padding: "24px",
+            padding: { xs: "16px", md: "24px" },
             borderRadius: "12px",
             boxShadow: "0 4px 12px rgba(0, 0, 0, 0.05)",
             mb: 4,
@@ -988,6 +1089,7 @@ const Alarmas = () => {
               color="secondary"
               startIcon={<VisibilityIcon />}
               onClick={fetchActivatedAlarms}
+              sx={{ width: { xs: '100%', sm: 'auto' }, mb: { xs: 1, sm: 0 } }}
             >
               Ver Alarmas Activadas
             </ActionButton>
@@ -995,6 +1097,7 @@ const Alarmas = () => {
               variant="contained"
               color="secondary"
               onClick={() => setIsCorreoModalOpen(true)}
+              sx={{ width: { xs: '100%', sm: 'auto' }, mb: { xs: 1, sm: 0 } }}
             >
               Ver o Añadir Correos
             </ActionButton>
@@ -1003,49 +1106,82 @@ const Alarmas = () => {
               color="primary"
               startIcon={<AddIcon />}
               onClick={handleOpenModal}
+              sx={{ width: { xs: '100%', sm: 'auto' } }}
             >
               Añadir Alarma
             </ActionButton>
           </Box>
-          <StyledTableContainer>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Nombre</TableCell>
-                  <TableCell>Dispositivo</TableCell>
-                  <TableCell>Subtema</TableCell>
-                  <TableCell>Variable</TableCell>
-                  <TableCell>Condición</TableCell>
-                  <TableCell>Valor</TableCell>
-                  <TableCell>Tiempo (s)</TableCell>
-                  <TableCell>Umbral (%)</TableCell>
-                  <TableCell>Acciones</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {alarms
-                  .slice(page * rowsPerPage, (page + 1) * rowsPerPage)
-                  .map((alarm, index) => renderTableRow(alarm, index))}
-              </TableBody>
-            </Table>
-          </StyledTableContainer>
-          <TablePagination
-            rowsPerPageOptions={[10, 25, 100]}
-            component="div"
-            count={alarms.length}
-            rowsPerPage={rowsPerPage}
-            page={page}
-            onPageChange={handleChangePage}
-            onRowsPerPageChange={handleChangeRowsPerPage}
-            sx={{ color: theme.palette.text.secondary }}
-          />
+          
+          {/* Vista para escritorio */}
+          <Box sx={{ display: { xs: 'none', md: 'block' } }}>
+            <StyledTableContainer>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Nombre</TableCell>
+                    <TableCell>Dispositivo</TableCell>
+                    <TableCell>Subtema</TableCell>
+                    <TableCell>Variable</TableCell>
+                    <TableCell>Condición</TableCell>
+                    <TableCell>Valor</TableCell>
+                    <TableCell>Tiempo (s)</TableCell>
+                    <TableCell>Umbral (%)</TableCell>
+                    <TableCell>Acciones</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {alarms
+                    .slice(page * rowsPerPage, (page + 1) * rowsPerPage)
+                    .map((alarm, index) => renderTableRow(alarm, index))}
+                </TableBody>
+              </Table>
+            </StyledTableContainer>
+            <TablePagination
+              rowsPerPageOptions={[10, 25, 100]}
+              component="div"
+              count={alarms.length}
+              rowsPerPage={rowsPerPage}
+              page={page}
+              onPageChange={handleChangePage}
+              onRowsPerPageChange={handleChangeRowsPerPage}
+              sx={{ color: theme.palette.text.secondary }}
+            />
+          </Box>
+          
+          {/* Vista para móvil */}
+          <Box sx={{ display: { xs: 'block', md: 'none' } }}>
+            {alarms.length > 0 ? (
+              alarms
+                .slice(page * rowsPerPage, (page + 1) * rowsPerPage)
+                .map((alarm, index) => renderMobileAlarmCard(alarm, index))
+            ) : (
+              <Box sx={{ textAlign: 'center', py: 4 }}>
+                <Typography variant="body1" color="text.secondary">
+                  No hay alarmas configuradas
+                </Typography>
+              </Box>
+            )}
+            <TablePagination
+              rowsPerPageOptions={[5, 10, 25]}
+              component="div"
+              count={alarms.length}
+              rowsPerPage={rowsPerPage}
+              page={page}
+              onPageChange={handleChangePage}
+              onRowsPerPageChange={handleChangeRowsPerPage}
+              sx={{ color: theme.palette.text.secondary }}
+            />
+          </Box>
         </Box>
+        
         <StyledModal open={isModalOpen} onClose={handleCloseModal}>
           <Box sx={{ 
-            p: 4, 
+            p: { xs: 2, sm: 4 }, 
             maxWidth: "500px", 
             width: "100%", 
-            backgroundColor: "#ffffff" 
+            backgroundColor: "#ffffff",
+            maxHeight: { xs: "90vh", sm: "80vh" },
+            overflowY: "auto"
           }}>
             <DialogTitle>
               <Typography variant="h6">Añadir Nueva Alarma</Typography>
@@ -1227,6 +1363,9 @@ const Alarmas = () => {
               padding: '16px',
               backgroundColor: theme.palette.background.paper,
               boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
+              width: { xs: '90%', sm: '80%', md: '60%' },
+              maxHeight: { xs: '90vh', sm: '80vh' },
+              overflowY: 'auto'
             }
           }}
         >

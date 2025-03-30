@@ -19,6 +19,11 @@ import {
   Paper,
   Alert,
   alpha,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
 } from "@mui/material";
 import {
   Edit,
@@ -32,7 +37,7 @@ import {
 import ChartConfigModal from "./ChartConfigModal";
 import LineChartComponent from "./LineChartComponent";
 import BarChartComponent from "./BarChartComponent";
- import PieChartComponent from "./PieChartComponent";
+import PieChartComponent from "./PieChartComponent";
 import DoughnutChartComponent from "./DoughnutChartComponent";
 import GaugeChartComponent from "./GaugeChartComponent";
 import ValueCardComponent from "./ValueCardComponent";
@@ -47,22 +52,22 @@ import ScatterChartComponent from "./ScatterChartComponent";
 import StackedBarChartComponent from "./StackedBarChartComponent";
 import BarHistorico from "./BarHistorico";
 import LineHistorico from "./LineHistorico";
-import PieHistorico from "./PieHistorico"; // Importar PieHistorico
-import AreaHistorico from "./AreaHistorico"; // Importar AreaHistorico
-import StackedBarHistorico from "./StackedBarHistorico"; // Importar StackedBarHistorico
-import FormulaComponent from "./FormulaComponent"; // Importar el nuevo componente de fórmula
+import PieHistorico from "./PieHistorico";
+import AreaHistorico from "./AreaHistorico";
+import StackedBarHistorico from "./StackedBarHistorico";
+import FormulaComponent from "./FormulaComponent";
 import "chartjs-adapter-date-fns";
 
 // Paleta de colores profesional y sobria
 const themeColors = {
   primary: {
-    main: "#70bc7e", // Verde del Navbar
+    main: "#70bc7e",
     light: "#a1d8ab",
     dark: "#5ea66b",
     contrastText: "#ffffff",
   },
   secondary: {
-    main: "#6C757D", // Gris moderno
+    main: "#6C757D",
     light: "#8A9AA1",
     dark: "#495057",
     contrastText: "#ffffff",
@@ -107,10 +112,14 @@ const DashboardConfig = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const isTablet = useMediaQuery(theme.breakpoints.between("sm", "md"));
-  const [historicalInitialData, setHistoricalInitialData] = useState({});
+  
+  // Estado para almacenar datos históricos
+  const [historicalData, setHistoricalData] = useState({});
 
   const [components, setComponents] = useState([]);
+  const [originalComponents, setOriginalComponents] = useState([]);
   const [subdashboards, setSubdashboards] = useState([]);
+  const [originalSubdashboards, setOriginalSubdashboards] = useState([]);
   const [activeSubdashboard, setActiveSubdashboard] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [subdashboardModalOpen, setSubdashboardModalOpen] = useState(false);
@@ -123,6 +132,8 @@ const DashboardConfig = () => {
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
   const [isLoading, setIsLoading] = useState(true);
   const [compactView, setCompactView] = useState(false);
+  const [unsavedChangesDialog, setUnsavedChangesDialog] = useState(false);
+  const [navigationPath, setNavigationPath] = useState(null);
 
   const columnSizeMap = {
     col2: { xs: 12, sm: 6, md: 4, lg: 2 },
@@ -141,6 +152,14 @@ const DashboardConfig = () => {
       return sizes;
     }
     return columnSizeMap[colSize] || { xs: 12, sm: 6, md: 6, lg: 6 };
+  };
+
+  // Helper para obtener datos de un tópico: usa MQTT o los históricos si están disponibles
+  const getTopicData = (variable) => {
+    const topic = variable.variable;
+    const parts = topic.split("/");
+    const historicalKey = `${parts[3]}:${parts[parts.length - 1]}`;
+    return mqttData[topic] || historicalData[historicalKey] || { time: [], values: {} };
   };
 
   useEffect(() => {
@@ -204,7 +223,9 @@ const DashboardConfig = () => {
           }))
         );
         setSubdashboards(subdashboardsFromDB);
+        setOriginalSubdashboards(subdashboardsFromDB);
         setComponents(componentsFromDB);
+        setOriginalComponents(componentsFromDB);
         if (subdashboardsFromDB.length > 0) {
           setActiveSubdashboard(subdashboardsFromDB[0]);
         }
@@ -218,6 +239,79 @@ const DashboardConfig = () => {
     };
     fetchDashboardData();
   }, [userId]);
+
+  useEffect(() => {
+    if (userId) {
+      const storedHistorical = localStorage.getItem("mqttHistoricalData");
+      if (storedHistorical) {
+        setHistoricalData(JSON.parse(storedHistorical));
+      } else if (components.length > 0) {
+        // Extraer tópicos únicos a partir de los componentes
+        const topicsSet = new Set();
+        components.forEach((comp) => {
+          comp.variables?.forEach((variable) => {
+            const parts = variable.variable.split("/");
+            const device_id = parts[3];
+            const subtopic = parts[parts.length - 1];
+            topicsSet.add(JSON.stringify({ device_id, subtopic }));
+          });
+        });
+        const topics = Array.from(topicsSet).map((t) => JSON.parse(t));
+        if (topics.length > 0) {
+          fetch("https://a85yvzzn8e.execute-api.us-east-1.amazonaws.com/mqtthistorico", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${localStorage.getItem("token")}`,
+            },
+            body: JSON.stringify({ userId, topics }),
+          })
+            .then((res) => res.json())
+            .then((rawData) => {
+              const structuredData = {};
+            
+              // rawData es algo como:
+              // {
+              //   "medidor1:medidorsiemens": [
+              //     { timestamp: "...", value: { corrientel1: 2, ... } },
+              //     { timestamp: "...", value: { corrientel1: 3, ... } },
+              //     ...
+              //   ],
+              //   "medidor1:Potencias": [...],
+              //   ...
+              // }
+            
+              for (const [key, arr] of Object.entries(rawData)) {
+                // 1. Ordenar por fecha ascendente
+                arr.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+            
+                const times = [];
+                const values = {};
+            
+                // 2. Recorrer en orden ascendente y llenar tus arrays
+                arr.forEach((entry) => {
+                  times.push(entry.timestamp);
+                  for (const [valKey, valValue] of Object.entries(entry.value)) {
+                    if (!values[valKey]) values[valKey] = [];
+                    values[valKey].push(valValue);
+                  }
+                });
+            
+                structuredData[key] = {
+                  time: times,
+                  values,
+                };
+              }
+            
+              localStorage.setItem("mqttHistoricalData", JSON.stringify(structuredData));
+              setHistoricalData(structuredData);
+            })
+            .catch((err) => console.error("Error fetching historical data:", err));
+        }
+      }
+    }
+  }, [userId, components]);
+  
 
   const showSnackbar = (message, severity = "success") => {
     setSnackbarMessage(message);
@@ -324,7 +418,7 @@ const DashboardConfig = () => {
       const updatedSubdashboards = [...subdashboards];
       updatedSubdashboards[editingSubdashboardIndex] = {
         ...updatedSubdashboards[editingSubdashboardIndex],
-        ...subdashboard
+        ...subdashboard,
       };
       setSubdashboards(updatedSubdashboards);
       setEditingSubdashboardIndex(null);
@@ -342,71 +436,29 @@ const DashboardConfig = () => {
     setEditingSubdashboardIndex(index);
     setSubdashboardModalOpen(true);
   };
-
   const fetchHistoricalData = async (userId, variables, filter, startDate, endDate) => {
     try {
-      console.log("Parámetros enviados a fetchHistoricalData:", { userId, variables, filter, startDate, endDate });
-  
-      // Extraer device_id y subtopic de las variables
-      const variable = variables[0]; // Tomamos la primera variable como referencia
-      console.log("Variable seleccionada para extraer device_id y subtopic:", variable);
-  
+      const variable = variables[0];
       const topicParts = variable.variable.split("/");
-      const device_id = topicParts[3]; // Cuarta posición para obtener "medidor1"
-      const subtopic = topicParts[topicParts.length - 1]; // Último segmento para el subtopic
-      console.log("device_id extraído:", device_id, "subtopic extraído:", subtopic);
+      const device_id = topicParts[3];
+      const subtopic = topicParts[topicParts.length - 1];
   
-      // Calcular startDate y endDate dinámicamente si no se proporcionan
-      let calculatedStartDate = startDate;
-      let calculatedEndDate = endDate;
-      const now = new Date();
+      // Aquí asumimos que startDate y endDate ya vienen correctos desde fetchData
+      const calculatedStartDate = startDate; // ya formateado
+      const calculatedEndDate = endDate;       // ya formateado
   
-      if (!startDate || !endDate) {
-        switch (filter) {
-          case "1D":
-            calculatedStartDate = new Date(now);
-            calculatedStartDate.setDate(now.getDate() - 1);
-            calculatedEndDate = now;
-            break;
-          case "7D":
-            calculatedStartDate = new Date(now);
-            calculatedStartDate.setDate(now.getDate() - 7);
-            calculatedEndDate = now;
-            break;
-          case "30D":
-            calculatedStartDate = new Date(now);
-            calculatedStartDate.setDate(now.getDate() - 30);
-            calculatedEndDate = now;
-            break;
-          case "custom":
-            if (!startDate || !endDate) {
-              throw new Error("Las fechas personalizadas (startDate y endDate) son requeridas para el filtro 'custom'.");
-            }
-            break;
-          default:
-            throw new Error("Filtro no válido. Usa '1D', '7D', '30D' o 'custom'.");
-        }
-  
-        // Convertir a formato ISO si se calcularon
-        calculatedStartDate = calculatedStartDate.toISOString();
-        calculatedEndDate = calculatedEndDate.toISOString();
-      } else {
-        // Si se proporcionaron fechas, usarlas directamente
-        calculatedStartDate = startDate;
-        calculatedEndDate = endDate;
-      }
-  
-      console.log("Fechas calculadas/enviadas:", { calculatedStartDate, calculatedEndDate });
-  
-      // Construir la URL con los parámetros de la query string
+      console.log("Fechas recibidas en fetchHistoricalData:", { calculatedStartDate, calculatedEndDate, filter });
+      console.log("Voy a armar queryParams con:", { userId, device_id, subtopic, filter, startDate, endDate });
+
       const queryParams = new URLSearchParams({
         userId: userId,
         device_id: device_id,
         subtopic: subtopic,
         filter: filter,
-        startDate: calculatedStartDate, // Siempre enviar startDate
-        endDate: calculatedEndDate,    // Siempre enviar endDate
       });
+  
+      queryParams.append("startDate", calculatedStartDate);
+      queryParams.append("endDate", calculatedEndDate);
   
       const url = `https://refiss445e.execute-api.us-east-1.amazonaws.com/filtromqtt?${queryParams.toString()}`;
       console.log("Solicitud enviada a:", url);
@@ -418,6 +470,10 @@ const DashboardConfig = () => {
       });
   
       if (!response.ok) {
+        if (response.status === 404) {
+          console.warn("No se encontraron datos para los parámetros proporcionados");
+          return [];
+        }
         const errorData = await response.json();
         console.error("Error de la API:", errorData.message);
         throw new Error(errorData.message || "Error al obtener datos históricos");
@@ -425,13 +481,19 @@ const DashboardConfig = () => {
   
       const data = await response.json();
       console.log("Datos recibidos de la API:", data);
+  
+      if (!data || data.length === 0) {
+        console.warn("La API devolvió una respuesta exitosa pero sin datos");
+        return [];
+      }
+  
       return data;
     } catch (error) {
       console.error("Error al obtener datos históricos:", error.message);
-      return [];
+      throw error;
     }
   };
-
+  
   const handleSaveDashboard = async () => {
     if (!userId) {
       showSnackbar("El usuario no está logueado.", "error");
@@ -449,8 +511,8 @@ const DashboardConfig = () => {
           {
             method: "DELETE",
             headers: {
-              Authorization: `Bearer ${localStorage.getItem("token")}`
-            }
+              Authorization: `Bearer ${localStorage.getItem("token")}`,
+            },
           }
         );
         if (!deleteResponse.ok) {
@@ -466,10 +528,9 @@ const DashboardConfig = () => {
         subdashboards: subdashboards.map((sub) => ({
           id: sub.id?.toString(),
           name: sub.name?.trim() || "Subdashboard sin nombre",
-          color: sub.color || "#FFFFFF"
+          color: sub.color || "#FFFFFF",
         })),
         components: components.map((comp) => {
-          // Crear un objeto base con las propiedades comunes
           const componentData = {
             subdashboardId: comp.subdashboardId?.toString(),
             chartType: comp.chartType || "Sin tipo de gráfico",
@@ -484,28 +545,25 @@ const DashboardConfig = () => {
                 subtopic: subtopic || "Sin subtopic",
                 value: variable.value || "Sin value",
                 color: variable.color || "#000000",
-                type: variable.type || "bar" // Añadimos el campo type
+                type: variable.type || "bar",
               };
             }),
             colSize: comp.colSize || "col6",
-            height: typeof comp.height === "number" ? comp.height : 400
+            height: typeof comp.height === "number" ? comp.height : 400,
           };
-          
-          // Añadir propiedades específicas para el componente de fórmula
+
           if (comp.chartType === "FormulaComponent") {
             componentData.formula = comp.formula || "";
             componentData.formulaDisplayType = comp.formulaDisplayType || "number";
             componentData.formulaUnit = comp.formulaUnit || "";
-            
-            // Añadir propiedades específicas para el tipo gauge
             if (comp.formulaDisplayType === "gauge") {
               componentData.formulaMin = comp.formulaMin !== undefined ? comp.formulaMin : 0;
               componentData.formulaMax = comp.formulaMax !== undefined ? comp.formulaMax : 100;
             }
           }
-          
+
           return componentData;
-        })
+        }),
       };
       const response = await fetch(
         "https://5kkoyuzfrf.execute-api.us-east-1.amazonaws.com/dashboards",
@@ -513,9 +571,9 @@ const DashboardConfig = () => {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${localStorage.getItem("token")}`
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
           },
-          body: JSON.stringify(payload)
+          body: JSON.stringify(payload),
         }
       );
       if (!response.ok) {
@@ -543,9 +601,8 @@ const DashboardConfig = () => {
       const colors = [];
       const borderColors = [];
       component.variables.forEach((variable) => {
-        const topic = variable.variable;
         const valueKey = variable.value;
-        const topicData = mqttData[topic];
+        const topicData = getTopicData(variable);
         if (topicData?.values && topicData.values[valueKey] !== undefined) {
           const lastValue = Array.isArray(topicData.values[valueKey])
             ? topicData.values[valueKey][topicData.values[valueKey].length - 1]
@@ -565,9 +622,9 @@ const DashboardConfig = () => {
             data: values,
             backgroundColor: colors,
             borderColor: borderColors,
-            borderWidth: 2
-          }
-        ]
+            borderWidth: 2,
+          },
+        ],
       };
     }
     if (component.chartType === "DoughnutChart") {
@@ -576,9 +633,8 @@ const DashboardConfig = () => {
       const colors = [];
       const borderColors = [];
       component.variables.forEach((variable) => {
-        const topic = variable.variable;
         const valueKey = variable.value;
-        const topicData = mqttData[topic];
+        const topicData = getTopicData(variable);
         if (topicData?.values && topicData.values[valueKey] !== undefined) {
           const lastValue = Array.isArray(topicData.values[valueKey])
             ? topicData.values[valueKey][topicData.values[valueKey].length - 1]
@@ -598,9 +654,9 @@ const DashboardConfig = () => {
             data: values,
             backgroundColor: colors,
             borderColor: borderColors,
-            borderWidth: 2
-          }
-        ]
+            borderWidth: 2,
+          },
+        ],
       };
     }
     if (
@@ -610,19 +666,15 @@ const DashboardConfig = () => {
     ) {
       let labels = [];
       const datasets = component.variables.map((variable) => {
-        const topic = variable.variable;
         const valueKey = variable.value;
-        const topicData = mqttData[topic] || { time: [], values: {} };
+        const topicData = getTopicData(variable) || { time: [], values: {} };
         const timesArray = topicData.time || [];
         const valuesArray = topicData.values?.[valueKey] || [];
         const alignedTimes = timesArray.slice(-10);
         const alignedValues = Array.isArray(valuesArray) ? valuesArray.slice(-10) : [];
-        
         if (labels.length === 0) {
           labels = alignedTimes;
         }
-  
-        // Calcular estadísticas
         const numericValues = alignedValues.map(val => parseFloat(val)).filter(val => !isNaN(val));
         const maxValue = numericValues.length > 0 ? Math.max(...numericValues) : null;
         const minValue = numericValues.length > 0 ? Math.min(...numericValues) : null;
@@ -635,9 +687,9 @@ const DashboardConfig = () => {
           borderColor: variable.borderColor || variable.color || "rgba(31,78,121,1)",
           borderWidth: 2,
           fill: component.chartType === "AreaChart",
-          maxValue,  // Agregar valor máximo
-          minValue,  // Agregar valor mínimo
-          avgValue,  // Agregar promedio
+          maxValue,
+          minValue,
+          avgValue,
         };
       });
       return { labels, datasets };
@@ -648,9 +700,8 @@ const DashboardConfig = () => {
       const colors = [];
       const borderColors = [];
       component.variables.forEach((variable) => {
-        const topic = variable.variable;
         const valueKey = variable.value;
-        const topicData = mqttData[topic];
+        const topicData = getTopicData(variable);
         if (topicData?.values && topicData.values[valueKey] !== undefined) {
           const lastValue = Array.isArray(topicData.values[valueKey])
             ? topicData.values[valueKey][topicData.values[valueKey].length - 1]
@@ -670,17 +721,16 @@ const DashboardConfig = () => {
             data: values,
             backgroundColor: colors,
             borderColor: borderColors,
-            borderWidth: 2
-          }
-        ]
+            borderWidth: 2,
+          },
+        ],
       };
     }
     if (component.chartType === "ValueCard") {
       const variablesData = component.variables
         .map((variable) => {
-          const topic = variable.variable;
           const valueKey = variable.value;
-          const topicData = mqttData[topic];
+          const topicData = getTopicData(variable);
           if (topicData?.values && topicData.values[valueKey] !== undefined) {
             const values = Array.isArray(topicData.values[valueKey])
               ? topicData.values[valueKey]
@@ -688,7 +738,7 @@ const DashboardConfig = () => {
             return {
               value: valueKey,
               data: values,
-              backgroundColor: variable.backgroundColor || variable.color || "#fff"
+              backgroundColor: variable.backgroundColor || variable.color || "#fff",
             };
           }
           return null;
@@ -699,9 +749,8 @@ const DashboardConfig = () => {
     if (component.chartType === "MixedChart") {
       let labels = [];
       const datasets = component.variables.map((variable, index) => {
-        const topic = variable.variable;
         const valueKey = variable.value;
-        const topicData = mqttData[topic] || { time: [], values: {} };
+        const topicData = getTopicData(variable) || { time: [], values: {} };
         const timesArray = topicData.time || [];
         const valuesArray = topicData.values?.[valueKey] || [];
         const alignedTimes = timesArray.slice(-10);
@@ -709,15 +758,14 @@ const DashboardConfig = () => {
         if (labels.length === 0) {
           labels = alignedTimes;
         }
-        // Alternar entre "line" y "bar" si type no está definido
-        const defaultType = index % 2 === 0 ? "line" : "bar"; // Por ejemplo, primer dataset como línea, segundo como barra
+        const defaultType = index % 2 === 0 ? "line" : "bar";
         return {
           label: valueKey || "Sin Nombre",
           data: alignedValues,
           backgroundColor: variable.backgroundColor || variable.color || "rgba(31,78,121,0.4)",
           borderColor: variable.borderColor || variable.color || "rgba(31,78,121,1)",
           borderWidth: 2,
-          type: variable.type || defaultType // Usar type si está definido, sino alternar
+          type: variable.type || defaultType,
         };
       });
       return { labels, datasets };
@@ -732,9 +780,8 @@ const DashboardConfig = () => {
     ) {
       let labels = [];
       const datasets = component.variables.map((variable) => {
-        const topic = variable.variable;
         const valueKey = variable.value;
-        const topicData = mqttData[topic] || { time: [], values: {} };
+        const topicData = getTopicData(variable) || { time: [], values: {} };
         const timesArray = topicData.time || [];
         const valuesArray = topicData.values?.[valueKey] || [];
         const alignedTimes = timesArray.slice(-10);
@@ -748,11 +795,11 @@ const DashboardConfig = () => {
             data: alignedValues.map((value, index) => ({
               x: index,
               y: value,
-              r: component.chartType === "BubbleChart" ? Math.abs(value) / 10 : undefined
+              r: component.chartType === "BubbleChart" ? Math.abs(value) / 10 : undefined,
             })),
             backgroundColor: variable.backgroundColor || variable.color || "rgba(31,78,121,0.4)",
             borderColor: variable.borderColor || variable.color || "rgba(31,78,121,1)",
-            borderWidth: 2
+            borderWidth: 2,
           };
         }
         return {
@@ -761,7 +808,7 @@ const DashboardConfig = () => {
           backgroundColor: variable.backgroundColor || variable.color || "rgba(31,78,121,0.4)",
           borderColor: variable.borderColor || variable.color || "rgba(31,78,121,1)",
           borderWidth: 2,
-          fill: component.chartType === "AreaChart"
+          fill: component.chartType === "AreaChart",
         };
       });
       return { labels, datasets };
@@ -772,9 +819,8 @@ const DashboardConfig = () => {
       const colors = [];
       const borderColors = [];
       component.variables.forEach((variable) => {
-        const topic = variable.variable;
         const valueKey = variable.value;
-        const topicData = mqttData[topic];
+        const topicData = getTopicData(variable);
         if (topicData?.values && topicData.values[valueKey] !== undefined) {
           const lastValue = Array.isArray(topicData.values[valueKey])
             ? topicData.values[valueKey][topicData.values[valueKey].length - 1]
@@ -794,68 +840,55 @@ const DashboardConfig = () => {
             data: values,
             backgroundColor: colors,
             borderColor: borderColors,
-            borderWidth: 2
-          }
-        ]
+            borderWidth: 2,
+          },
+        ],
       };
     }
     if (component.chartType === "AreaHistorico") {
       const labels = [];
-      const values = [];
-      const colors = [];
-      const borderColors = [];
-      
-      // Usar la misma lógica que para BarHistorico y LineHistorico
       let datasets = [];
       if (component.variables && component.variables.length > 0) {
         datasets = component.variables.map((variable) => {
           return {
             label: variable.value || "Sin nombre",
             data: [],
-            backgroundColor: `${variable.color}80`, // Color con transparencia para el área
+            backgroundColor: `${variable.color}80`,
             borderColor: variable.color || "#3b82f6",
             borderWidth: 2,
             fill: true,
           };
         });
       }
-      
       return {
         labels: [],
-        datasets: datasets
+        datasets: datasets,
       };
     }
     if (component.chartType === "StackedBarHistorico") {
       const labels = [];
-      const values = [];
-      const colors = [];
-      const borderColors = [];
-      
-      // Usar la misma lógica que para BarHistorico y LineHistorico
       let datasets = [];
       if (component.variables && component.variables.length > 0) {
         datasets = component.variables.map((variable) => {
           return {
             label: variable.value || "Sin nombre",
             data: [],
-            backgroundColor: `${variable.color}80`, // Color con transparencia para el área
+            backgroundColor: `${variable.color}80`,
             borderColor: variable.color || "#3b82f6",
             borderWidth: 2,
           };
         });
       }
-      
       return {
         labels: [],
-        datasets: datasets
+        datasets: datasets,
       };
     }
     if (component.chartType === "FormulaComponent") {
       const variablesData = component.variables
         .map((variable) => {
-          const topic = variable.variable;
           const valueKey = variable.value;
-          const topicData = mqttData[topic];
+          const topicData = getTopicData(variable);
           if (topicData?.values && topicData.values[valueKey] !== undefined) {
             const values = Array.isArray(topicData.values[valueKey])
               ? topicData.values[valueKey]
@@ -863,7 +896,7 @@ const DashboardConfig = () => {
             return {
               value: valueKey,
               data: values,
-              backgroundColor: variable.backgroundColor || variable.color || "#fff"
+              backgroundColor: variable.backgroundColor || variable.color || "#fff",
             };
           }
           return null;
@@ -876,7 +909,7 @@ const DashboardConfig = () => {
 
   const renderComponent = (component, index) => {
     const colSize = getColumnSize(component.colSize);
-    const height = component.height || 300; // Altura base si no se especifica
+    const height = component.height || 300;
     const chartData = prepareChart(component);
 
     return (
@@ -894,7 +927,7 @@ const DashboardConfig = () => {
               transform: "translateY(-3px)",
               boxShadow: "0 8px 20px rgba(0,0,0,0.12)",
             },
-            height: "auto", // Altura dinámica
+            height: "auto",
             display: "flex",
             flexDirection: "column",
           }}
@@ -922,7 +955,7 @@ const DashboardConfig = () => {
             <Typography variant="h6" sx={{ fontSize: "1rem", fontWeight: 600 }}>
               {component.componentName || "Componente sin nombre"}
             </Typography>
-            <Box>
+            <Box sx={{ display: "flex", gap: 1 }}>
               <IconButton size="small" onClick={() => handleEditComponent(index)}>
                 <Edit fontSize="small" />
               </IconButton>
@@ -940,7 +973,7 @@ const DashboardConfig = () => {
               alignItems: "center",
               justifyContent: "center",
               background: themeColors.background.default,
-              minHeight: `${height}px`, // Altura mínima basada en el componente
+              minHeight: `${height}px`,
             }}
           >
             <Box sx={{ width: "100%", height: "100%" }}>
@@ -1026,11 +1059,7 @@ const DashboardConfig = () => {
                 />
               )}
               {component.chartType === "FormulaComponent" && (
-                <FormulaComponent
-                  userId={userId}
-                  componentData={component}
-                  height={height}
-                />
+                <FormulaComponent userId={userId} componentData={component} height={height} />
               )}
             </Box>
           </CardContent>
@@ -1051,6 +1080,112 @@ const DashboardConfig = () => {
   // Ajuste del ancho del contenido según el sidebar
   const contentWidth = isMobile ? "100%" : sidebarOpen ? "calc(100% - 260px)" : "100%";
   const contentMarginLeft = isMobile ? "0px" : sidebarOpen ? "260px" : "0px";
+
+  const hasUnsavedChanges = () => {
+    return (
+      JSON.stringify(components) !== JSON.stringify(originalComponents) ||
+      JSON.stringify(subdashboards) !== JSON.stringify(originalSubdashboards)
+    );
+  };
+
+  useEffect(() => {
+    // Variable para rastrear si se han guardado los cambios
+    let changesSaved = false;
+    
+    // Función para manejar la navegación por enlaces
+    const handleLinkNavigation = (event) => {
+      // Solo interceptar si hay cambios sin guardar y no se han guardado aún
+      if (hasUnsavedChanges() && !changesSaved) {
+        // Verificar si el elemento o alguno de sus padres es un enlace
+        let target = event.target;
+        let href = null;
+        
+        // Buscar el elemento <a> más cercano (podría ser el propio elemento o un padre)
+        while (target && !href && target.tagName) {
+          if (target.tagName.toLowerCase() === 'a') {
+            href = target.getAttribute('href');
+          }
+          target = target.parentElement;
+        }
+        
+        if (href && !href.startsWith('#')) {
+          // Prevenir la navegación predeterminada
+          event.preventDefault();
+          event.stopPropagation();
+          
+          // Guardar la ruta para usarla después si el usuario confirma
+          setNavigationPath(href);
+          
+          // Mostrar el diálogo de confirmación
+          setUnsavedChangesDialog(true);
+          return false;
+        }
+      }
+    };
+
+    // Función para manejar el evento beforeunload
+    const handleBeforeUnload = (e) => {
+      // Solo mostrar la alerta si hay cambios sin guardar y no se han guardado aún
+      if (hasUnsavedChanges() && !changesSaved) {
+        // Mensaje estándar (aunque los navegadores modernos muestran su propio mensaje)
+        const message = "Hay cambios sin guardar. ¿Seguro que deseas salir?";
+        e.preventDefault();
+        e.returnValue = message;
+        return message;
+      }
+    };
+
+    // Modificar la función handleSaveDashboard para marcar los cambios como guardados
+    const originalSaveDashboard = handleSaveDashboard;
+    window.handleSaveDashboard = async () => {
+      await originalSaveDashboard();
+      changesSaved = true;
+      // Actualizar los estados originales para reflejar los cambios guardados
+      setOriginalComponents([...components]);
+      setOriginalSubdashboards([...subdashboards]);
+    };
+
+    // Añadir listeners
+    document.addEventListener('click', handleLinkNavigation, true);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      // Limpiar listeners al desmontar
+      document.removeEventListener('click', handleLinkNavigation, true);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      // Restaurar la función original
+      window.handleSaveDashboard = originalSaveDashboard;
+    };
+  }, [components, subdashboards]);
+
+  // Función para manejar las acciones del diálogo de cambios sin guardar
+  const handleUnsavedChangesAction = (action) => {
+    if (action === 'discard') {
+      // Descartar cambios y navegar a la ruta guardada
+      setUnsavedChangesDialog(false);
+      // Restaurar componentes y subdashboards a su estado original
+      setComponents([...originalComponents]);
+      setSubdashboards([...originalSubdashboards]);
+      // Navegar a la ruta guardada después de un breve retraso
+      setTimeout(() => {
+        window.location.href = navigationPath;
+      }, 100);
+    } else if (action === 'cancel') {
+      // Cancelar la acción y cerrar el diálogo
+      setUnsavedChangesDialog(false);
+      setNavigationPath(null);
+    } else if (action === 'save') {
+      // Guardar cambios y luego navegar
+      handleSaveDashboard();
+      setUnsavedChangesDialog(false);
+      // Navegar a la ruta guardada después de un breve retraso
+      setTimeout(() => {
+        if (navigationPath) {
+          window.location.href = navigationPath;
+        }
+      }, 500); // Dar tiempo para que se complete el guardado
+    }
+  };
 
   return (
     <Box
@@ -1223,19 +1358,44 @@ const DashboardConfig = () => {
             sx={{
               p: { xs: 3, sm: 4 },
               mb: 4,
-              borderRadius: "12px",
-              background: themeColors.background.paper,
-              boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
+              borderRadius: "16px",
+              background: "linear-gradient(145deg, #ffffff, #f8f9fa)",
+              boxShadow: "0 10px 25px rgba(0, 0, 0, 0.08)",
               position: "relative",
+              overflow: "hidden",
+              "&::before": {
+                content: '""',
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: "100%",
+                height: "6px",
+                background: "linear-gradient(90deg, #70bc7e, #5ea66b)",
+              }
             }}
           >
             <Typography
               variant="h5"
               sx={{
-                color: themeColors.primary.main,
-                mb: 3,
+                color: themeColors.text.primary,
+                mb: 4,
                 textAlign: "center",
                 fontWeight: 700,
+                position: "relative",
+                display: "inline-block",
+                left: "50%",
+                transform: "translateX(-50%)",
+                "&::after": {
+                  content: '""',
+                  position: "absolute",
+                  bottom: "-10px",
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  width: "80px",
+                  height: "3px",
+                  background: "linear-gradient(90deg, #70bc7e, #5ea66b)",
+                  borderRadius: "3px",
+                }
               }}
             >
               Subdashboards Disponibles
@@ -1245,141 +1405,154 @@ const DashboardConfig = () => {
                 sx={{
                   textAlign: "center",
                   color: themeColors.text.secondary,
-                  py: 4,
-                  px: 2,
-                  background: alpha(themeColors.primary.main, 0.05),
-                  borderRadius: "8px",
+                  py: 5,
+                  px: 3,
+                  background: "linear-gradient(145deg, #f8f9fa, #f1f3f5)",
+                  borderRadius: "12px",
+                  boxShadow: "inset 0 2px 6px rgba(0,0,0,0.03)",
+                  border: "1px dashed rgba(0,0,0,0.1)",
                 }}
               >
-                <Typography sx={{ mb: 2, fontSize: "1.1rem", fontWeight: 500 }}>
+                <Box sx={{ mb: 3, display: "flex", justifyContent: "center" }}>
+                  <DashboardCustomize sx={{ fontSize: 60, color: alpha(themeColors.primary.main, 0.5), mb: 2 }} />
+                </Box>
+                <Typography sx={{ mb: 3, fontSize: "1.1rem", fontWeight: 500, color: themeColors.text.primary }}>
                   No hay subdashboards creados. Crea tu primer subdashboard.
                 </Typography>
                 <Button
-                  variant="outlined"
+                  variant="contained"
                   onClick={() => setSubdashboardModalOpen(true)}
                   startIcon={<Add />}
                   sx={{
-                    color: themeColors.primary.main,
-                    borderColor: themeColors.primary.main,
+                    borderRadius: "8px",
+                    background: themeColors.primary.main,
+                    boxShadow: `0 4px 10px ${alpha(themeColors.primary.main, 0.4)}`,
                     "&:hover": {
-                      background: alpha(themeColors.primary.main, 0.1),
+                      background: themeColors.primary.dark,
+                      transform: "translateY(-2px)",
                     },
+                    textTransform: "none",
+                    fontSize: "1rem",
+                    fontWeight: 600,
                   }}
                 >
                   Crear primer subdashboard
                 </Button>
               </Box>
             ) : (
-              <Box
-                sx={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: 3,
-                  justifyContent: { xs: "center", sm: "flex-start" },
-                }}
-              >
-                {subdashboards.map((subdashboard, index) => (
-                  <Card
-                    key={subdashboard.id}
-                    onClick={() => setActiveSubdashboard(subdashboard)}
-                    sx={{
-                      background: activeSubdashboard?.id === subdashboard.id 
-                        ? '#006875'
-                        : '#334155',
-                      backdropFilter: 'blur(12px)',
-                      border: activeSubdashboard?.id === subdashboard.id 
-                        ? '2px solid rgba(255, 255, 255, 0.2)'
-                        : '1px solid rgba(255, 255, 255, 0.1)',
-                      borderRadius: '12px',
-                      p: 2,
-                      cursor: 'pointer',
-                      transition: 'all 0.3s ease',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 1,
-                      color: 'white',
-                      '& .MuiTypography-root': {
-                        color: 'white'
-                      },
-                      '&:hover': {
-                        transform: 'translateY(-4px)',
-                        boxShadow: '0 10px 20px rgba(0,0,0,0.2)',
-                        background: activeSubdashboard?.id === subdashboard.id 
-                          ? '#006875'
-                          : '#475569'
-                      }
-                    }}
-                  >
-                    <Box
-                      sx={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between"
-                      }}
-                    >
-                      <Box>
-                        <Typography 
-                          variant="h6" 
-                          sx={{ 
-                            color: '#fff',
-                            fontWeight: 600,
-                            fontSize: { xs: '1rem', sm: '1.1rem' }
+              <Grid container spacing={3} sx={{ mt: 1 }}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: 3,
+                    justifyContent: { xs: "center", sm: "flex-start" },
+                  }}
+                >
+                  {subdashboards.map((subdashboard, index) => {
+                    const isActive = activeSubdashboard?.id === subdashboard.id;
+
+                    return (
+                      <Card
+                        key={subdashboard.id}
+                        onClick={() => setActiveSubdashboard(subdashboard)}
+                        sx={{
+                          cursor: "pointer",
+                          width: { xs: "100%", sm: "220px", md: "220px" }, // Ajusta el ancho
+                          minHeight: "120px",
+                          display: "flex",
+                          flexDirection: "column",
+                          justifyContent: "space-between",
+                          alignItems: "flex-start",
+                          p: 2,
+                          borderRadius: "16px",
+                          transition: "all 0.3s ease",
+                          // Gradiente distinto si está activo o no
+                          background: isActive
+                            ? "linear-gradient(135deg, #006875 0%, #00a6b4 100%)"
+                            : "linear-gradient(135deg, #334155 0%, #475569 100%)",
+                          boxShadow: isActive
+                            ? "0 10px 25px rgba(0, 166, 180, 0.4)"
+                            : "0 6px 12px rgba(0,0,0,0.15)",
+                          "&:hover": {
+                            transform: "translateY(-4px)",
+                            boxShadow: isActive
+                              ? "0 12px 28px rgba(0, 166, 180, 0.45)"
+                              : "0 10px 20px rgba(0,0,0,0.2)",
+                          },
+                        }}
+                      >
+                        {/* Encabezado e iconos de edición/eliminación */}
+                        <Box
+                          sx={{
+                            width: "100%",
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            mb: 1,
                           }}
                         >
-                          {subdashboard.name}
-                        </Typography>
+                          <Typography
+                            variant="h6"
+                            sx={{
+                              fontSize: { xs: "1rem", sm: "1.1rem" },
+                              fontWeight: 600,
+                              color: "#fff",
+                            }}
+                          >
+                            {subdashboard.name}
+                          </Typography>
+                          <Box sx={{ display: "flex", gap: 1 }}>
+                            <IconButton
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingSubdashboardIndex(index);
+                                setSubdashboardModalOpen(true);
+                              }}
+                              size="small"
+                              sx={{
+                                color: "#fff",
+                                backgroundColor: "rgba(255,255,255,0.15)",
+                                "&:hover": { backgroundColor: "rgba(255,255,255,0.25)" },
+                              }}
+                            >
+                              <Edit fontSize="small" />
+                            </IconButton>
+                            <IconButton
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteSubdashboard(index);
+                              }}
+                              size="small"
+                              sx={{
+                                color: "white",
+                                backgroundColor: "rgba(255,255,255,0.15)",
+                                "&:hover": { backgroundColor: "rgba(255,255,255,0.25)" },
+                              }}
+                            >
+                              <Delete fontSize="small" />
+                            </IconButton>
+                          </Box>
+                        </Box>
+
+                        {/* Contador de componentes */}
                         <Chip
-                          label={`${components.filter(comp => comp.subdashboardId === subdashboard.id).length} componentes`}
+                          label={`${components.filter((comp) => comp.subdashboardId === subdashboard.id).length} componentes`}
                           size="small"
                           sx={{
-                            backgroundColor: '#0ea5e9',
-                            color: 'white',
-                            fontSize: '0.75rem',
+                            backgroundColor: "rgba(255,255,255,0.2)",
+                            color: "#fff",
+                            fontSize: "0.75rem",
                             fontWeight: 500,
-                            border: '1px solid rgba(255,255,255,0.2)'
+                            border: "1px solid rgba(255,255,255,0.2)",
+                            mt: "auto",
                           }}
                         />
-                      </Box>
-                      <Box sx={{ display: "flex", gap: 1 }}>
-                        <IconButton
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditingSubdashboardIndex(index);
-                            setSubdashboardModalOpen(true);
-                          }}
-                          sx={{
-                            color: 'white',
-                            backgroundColor: '#0ea5e9',
-                            '&:hover': {
-                              backgroundColor: '#0284c7'
-                            },
-                            padding: '6px'
-                          }}
-                          size="small"
-                        >
-                          <Edit fontSize="small" />
-                        </IconButton>
-                        <IconButton
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteSubdashboard(index);
-                          }}
-                          sx={{
-                            color: themeColors.error.main,
-                            backgroundColor: alpha(themeColors.error.main, 0.1),
-                            "&:hover": {
-                              backgroundColor: alpha(themeColors.error.main, 0.2)
-                            }
-                          }}
-                          size="small"
-                        >
-                          <Delete fontSize="small" />
-                        </IconButton>
-                      </Box>
-                    </Box>
-                  </Card>
-                ))}
-              </Box>
+                      </Card>
+                    );
+                  })}
+                </Box>
+              </Grid>
             )}
           </Paper>
 
@@ -1526,7 +1699,7 @@ const DashboardConfig = () => {
                   background: "#fff",
                   padding: 4,
                   borderRadius: "8px",
-                  boxShadow: "0 6px 20px rgba(0, 0, 0, 0.1)",
+                  boxShadow: "0 6px 20px rgba(0,0,0,0.1)",
                   maxWidth: "300px",
                 }}
               >
@@ -1540,7 +1713,7 @@ const DashboardConfig = () => {
             </Box>
           )}
 
-          {/* Modals y Snackbars */}
+          {/* Modales y Snackbars */}
           <ChartConfigModal
             open={modalOpen}
             onClose={handleCloseModal}
@@ -1583,6 +1756,32 @@ const DashboardConfig = () => {
               {snackbarMessage}
             </Alert>
           </Snackbar>
+          <Dialog
+            open={unsavedChangesDialog}
+            onClose={() => setUnsavedChangesDialog(false)}
+            aria-labelledby="unsaved-changes-dialog-title"
+            aria-describedby="unsaved-changes-dialog-description"
+          >
+            <DialogTitle id="unsaved-changes-dialog-title">
+              {"Cambios sin guardar"}
+            </DialogTitle>
+            <DialogContent>
+              <DialogContentText id="unsaved-changes-dialog-description">
+                Tienes cambios sin guardar en el dashboard. ¿Quieres guardar los cambios antes de salir?
+              </DialogContentText>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => handleUnsavedChangesAction('discard')} color="error">
+                Descartar cambios
+              </Button>
+              <Button onClick={() => handleUnsavedChangesAction('cancel')} color="primary">
+                Cancelar
+              </Button>
+              <Button onClick={() => handleUnsavedChangesAction('save')} color="primary" variant="contained" autoFocus>
+                Guardar y continuar
+              </Button>
+            </DialogActions>
+          </Dialog>
         </Box>
       </Grid>
     </Box>

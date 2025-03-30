@@ -485,18 +485,50 @@ const ReportGenerator = () => {
         alert("Selecciona un dispositivo para buscar temas.");
         return;
       }
+  
       const device = devices.find((dev) => dev.deviceId === selectedDevice);
+      console.log("Dispositivo seleccionado:", device);
+  
+      setLoading(true);
+      setError(null);
+      setSubtopics([]);
+  
+      // Definir rango de tiempo por defecto (últimas 24 horas)
+      const now = new Date();
+      const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000); // hace 24h
+  
+      const formattedStart = oneDayAgo.toISOString();
+      const formattedEnd = now.toISOString();
+  
       const response = await axios.get(
         `https://d5n72hag43.execute-api.us-east-1.amazonaws.com/report`,
-        { params: { userId, device_id: device.name } }
+        {
+          params: {
+            userId,
+            device_id: device.name,
+            startDate: formattedStart,
+            endDate: formattedEnd
+          }
+        }
       );
-      setSubtopics(response.data);
+  
+      console.log("Respuesta de la API (subtopics):", response.data);
+  
+      if (Array.isArray(response.data) && response.data.length > 0) {
+        setSubtopics(response.data);
+        setSnackbarMessage(`Se encontraron ${response.data.length} temas disponibles`);
+        setSnackbarOpen(true);
+      } else {
+        setError("No se encontraron temas para este dispositivo");
+      }
     } catch (error) {
       console.error("Error al obtener subtopics:", error);
-      alert("Error al cargar subtopics. Intenta de nuevo.");
+      setError(`Error al cargar subtopics: ${error.message}`);
+    } finally {
+      setLoading(false);
     }
   };
-
+  
   const fetchVariables = async (subtopic) => {
     try {
       const userId = localStorage.getItem("userId");
@@ -504,11 +536,28 @@ const ReportGenerator = () => {
         alert("Selecciona un subtopic para cargar variables.");
         return;
       }
+  
       const device = devices.find((dev) => dev.deviceId === selectedDevice);
+  
+      // Rango de tiempo por defecto (últimas 24 horas)
+      const now = new Date();
+      const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      const formattedStart = oneDayAgo.toISOString();
+      const formattedEnd = now.toISOString();
+  
       const response = await axios.get(
         `https://d5n72hag43.execute-api.us-east-1.amazonaws.com/report`,
-        { params: { userId, device_id: device.name, subtopic } }
+        {
+          params: {
+            userId,
+            device_id: device.name,
+            subtopic,
+            startDate: formattedStart,
+            endDate: formattedEnd
+          }
+        }
       );
+  
       if (response.data && response.data[0]) {
         const variableKeys = Object.keys(response.data[0]);
         setVariables(variableKeys);
@@ -518,6 +567,7 @@ const ReportGenerator = () => {
       alert("Error al cargar variables. Intenta de nuevo.");
     }
   };
+  
 
   const handleAddVariable = () => {
     setNewComponent((prev) => ({
@@ -1254,13 +1304,42 @@ const ReportGenerator = () => {
                   color: '#94a3b8',
                   p: 3
                 }}>
-                  <TopicIcon sx={{ fontSize: 48, mb: 2, opacity: 0.5 }} />
-                  <Typography variant="h6" sx={{ color: '#475569', mb: 1 }}>
-                    No hay temas disponibles
-                  </Typography>
-                  <Typography variant="body2" sx={{ textAlign: 'center' }}>
-                    Selecciona un dispositivo y haz clic en "Buscar Temas"
-                  </Typography>
+                  {loading ? (
+                    <>
+                      <CircularProgress size={48} color="primary" sx={{ mb: 2 }} />
+                      <Typography variant="h6" sx={{ color: '#475569', mb: 1 }}>
+                        Cargando temas...
+                      </Typography>
+                    </>
+                  ) : error ? (
+                    <>
+                      <TopicIcon sx={{ fontSize: 48, mb: 2, opacity: 0.5, color: '#ef4444' }} />
+                      <Typography variant="h6" sx={{ color: '#ef4444', mb: 1 }}>
+                        Error al cargar temas
+                      </Typography>
+                      <Typography variant="body2" sx={{ textAlign: 'center', mb: 2 }}>
+                        {error}
+                      </Typography>
+                      <Button 
+                        variant="outlined" 
+                        color="primary" 
+                        onClick={fetchSubtopics}
+                        startIcon={<TopicIcon />}
+                      >
+                        Reintentar
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <TopicIcon sx={{ fontSize: 48, mb: 2, opacity: 0.5 }} />
+                      <Typography variant="h6" sx={{ color: '#475569', mb: 1 }}>
+                        No hay temas disponibles
+                      </Typography>
+                      <Typography variant="body2" sx={{ textAlign: 'center' }}>
+                        Selecciona un dispositivo y haz clic en "Buscar Temas"
+                      </Typography>
+                    </>
+                  )}
                 </Box>
               )}
             </Paper>
@@ -1663,7 +1742,7 @@ const ReportGenerator = () => {
           onClose={() => setSnackbarOpen(false)}
           anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
         >
-          <Alert onClose={() => setSnackbarOpen(false)} severity="success" sx={{ width: '100%' }}>
+          <Alert onClose={() => setSnackbarOpen(false)} severity={error ? "error" : "success"} sx={{ width: '100%' }}>
             {snackbarMessage}
           </Alert>
         </Snackbar>

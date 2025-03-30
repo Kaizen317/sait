@@ -9,6 +9,7 @@ import {
   Chip,
   useMediaQuery,
   useTheme,
+  CircularProgress,
 } from "@mui/material";
 import { motion } from "framer-motion"; // Importar motion desde framer-motion
 import { alpha } from "@mui/system"; // Importar alpha desde @mui/system
@@ -28,11 +29,13 @@ import ScatterChartComponent from "./ScatterChartComponent";
 import StackedBarChartComponent from "./StackedBarChartComponent";
 import BarHistorico from "./BarHistorico";
 import LineHistorico from "./LineHistorico";
-import PieHistorico from "./PieHistorico"; // Importar PieHistorico
-import AreaHistorico from "./AreaHistorico"; // Importar AreaHistorico
-import StackedBarHistorico from "./StackedBarHistorico"; // Importar StackedBarHistorico
-import FormulaComponent from "./FormulaComponent"; // Importar el componente de fórmula
+import PieHistorico from "./PieHistorico";
+import AreaHistorico from "./AreaHistorico";
+import StackedBarHistorico from "./StackedBarHistorico";
+import FormulaComponent from "./FormulaComponent";
 import "chartjs-adapter-date-fns";
+import Edit from '@mui/icons-material/Edit';
+import Delete from '@mui/icons-material/Delete';
 
 // Paleta de colores profesional y sobria (tomada de DashboardConfig)
 const themeColors = {
@@ -94,6 +97,13 @@ const Dashboard = () => {
   const userType = localStorage.getItem("userType") || "root";
   const [isLoading, setIsLoading] = useState(true);
 
+  // Estado para almacenar datos históricos
+  const [historicalData, setHistoricalData] = useState({});
+  // Estado para controlar la carga de datos históricos
+  const [isLoadingHistorical, setIsLoadingHistorical] = useState(false);
+  // Estado para controlar componentes específicos en carga
+  const [loadingComponents, setLoadingComponents] = useState({});
+
   const columnSizeMap = {
     col2: { xs: 12, sm: 6, md: 4, lg: 2 },
     col3: { xs: 12, sm: 6, md: 4, lg: 3 },
@@ -102,8 +112,16 @@ const Dashboard = () => {
     col12: { xs: 12 },
   };
 
+  // Helper para obtener datos de un tópico: usa MQTT o los históricos si están disponibles
+  const getTopicData = (variable) => {
+    const topic = variable.variable;
+    const parts = topic.split("/");
+    const historicalKey = `${parts[3]}:${parts[parts.length - 1]}`;
+    return mqttData[topic] || historicalData[historicalKey] || { time: [], values: {} };
+  };
+
   useEffect(() => {
-    console.log("Datos MQTT recibidos:", mqttData);
+    // console.log("Datos MQTT recibidos:", mqttData);
   }, [mqttData]);
 
   useEffect(() => {
@@ -117,9 +135,99 @@ const Dashboard = () => {
   }, [components, subscribeToTopic]);
 
   useEffect(() => {
+    if (userId) {
+      const storedHistorical = localStorage.getItem("mqttHistoricalData");
+      if (storedHistorical) {
+        setHistoricalData(JSON.parse(storedHistorical));
+      } else if (components.length > 0) {
+        // Extraer tópicos únicos a partir de los componentes
+        const topicsSet = new Set();
+
+        // Marcar todos los componentes como "cargando"
+        const loadingState = {};
+        components.forEach((comp) => {
+          loadingState[comp.id] = true;
+        });
+        setLoadingComponents(loadingState);
+        setIsLoadingHistorical(true);
+
+        components.forEach((comp) => {
+          comp.variables?.forEach((variable) => {
+            const parts = variable.variable.split("/");
+            const device_id = parts[3];
+            const subtopic = parts[parts.length - 1];
+            topicsSet.add(JSON.stringify({ device_id, subtopic }));
+          });
+        });
+        const topics = Array.from(topicsSet).map((t) => JSON.parse(t));
+        if (topics.length > 0) {
+          fetch("https://a85yvzzn8e.execute-api.us-east-1.amazonaws.com/mqtthistorico", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${localStorage.getItem("token")}`,
+            },
+            body: JSON.stringify({ userId, topics }),
+          })
+            .then((res) => res.json())
+            .then((rawData) => {
+              const structuredData = {};
+
+              // Procesar datos históricos
+              for (const [key, arr] of Object.entries(rawData)) {
+                // 1. Ordenar por fecha ascendente
+                arr.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+                const times = [];
+                const values = {};
+
+                // 2. Recorrer en orden ascendente y llenar arrays
+                arr.forEach((entry) => {
+                  times.push(entry.timestamp);
+                  for (const [valKey, valValue] of Object.entries(entry.value)) {
+                    if (!values[valKey]) values[valKey] = [];
+                    values[valKey].push(valValue);
+                  }
+                });
+
+                structuredData[key] = {
+                  time: times,
+                  values,
+                };
+              }
+
+              localStorage.setItem("mqttHistoricalData", JSON.stringify(structuredData));
+              setHistoricalData(structuredData);
+
+              // Marcar todos los componentes como "no cargando"
+              const newLoadingState = {};
+              components.forEach((comp) => {
+                newLoadingState[comp.id] = false;
+              });
+              setLoadingComponents(newLoadingState);
+              setIsLoadingHistorical(false);
+            })
+            .catch((err) => {
+              // console.error("Error fetching historical data:", err);
+              setIsLoadingHistorical(false);
+              // Marcar todos los componentes como "no cargando" en caso de error
+              const newLoadingState = {};
+              components.forEach((comp) => {
+                newLoadingState[comp.id] = false;
+              });
+              setLoadingComponents(newLoadingState);
+            });
+        } else {
+          setIsLoadingHistorical(false);
+        }
+      }
+    }
+  }, [userId, components]);
+
+  useEffect(() => {
     const fetchDashboardData = async () => {
       if (!userId) {
-        console.warn("El usuario no está logueado.");
+        // console.warn("El usuario no está logueado.");
         setIsLoading(false);
         return;
       }
@@ -140,7 +248,7 @@ const Dashboard = () => {
 
         if (!response.ok) {
           const errorData = await response.json();
-          console.error("Error al cargar los datos:", errorData);
+          // console.error("Error al cargar los datos:", errorData);
           return;
         }
 
@@ -148,7 +256,7 @@ const Dashboard = () => {
         const { dashboards } = data;
 
         if (!dashboards || !Array.isArray(dashboards)) {
-          console.error("Estructura de respuesta inesperada:", dashboards);
+          // console.error("Estructura de respuesta inesperada:", dashboards);
           return;
         }
 
@@ -172,7 +280,7 @@ const Dashboard = () => {
           setActiveSubdashboard(subdashboardsFromDB[0]);
         }
       } catch (error) {
-        console.error("Error en la solicitud:", error);
+        // console.error("Error en la solicitud:", error);
       } finally {
         setIsLoading(false);
       }
@@ -238,7 +346,7 @@ const Dashboard = () => {
       const data = await response.json();
       return data;
     } catch (error) {
-      console.error("Error al obtener datos históricos:", error.message);
+      // console.error("Error al obtener datos históricos:", error.message);
       return [];
     }
   };
@@ -254,9 +362,8 @@ const Dashboard = () => {
       const colors = [];
       const borderColors = [];
       component.variables.forEach((variable) => {
-        const topic = variable.variable;
         const valueKey = variable.value;
-        const topicData = mqttData[topic];
+        const topicData = getTopicData(variable);
         if (topicData?.values && topicData.values[valueKey] !== undefined) {
           const lastValue = Array.isArray(topicData.values[valueKey])
             ? topicData.values[valueKey][topicData.values[valueKey].length - 1]
@@ -288,9 +395,8 @@ const Dashboard = () => {
       const colors = [];
       const borderColors = [];
       component.variables.forEach((variable) => {
-        const topic = variable.variable;
         const valueKey = variable.value;
-        const topicData = mqttData[topic];
+        const topicData = getTopicData(variable);
         if (topicData?.values && topicData.values[valueKey] !== undefined) {
           const lastValue = Array.isArray(topicData.values[valueKey])
             ? topicData.values[valueKey][topicData.values[valueKey].length - 1]
@@ -323,9 +429,8 @@ const Dashboard = () => {
     ) {
       let labels = [];
       const datasets = component.variables.map((variable) => {
-        const topic = variable.variable;
         const valueKey = variable.value;
-        const topicData = mqttData[topic] || { time: [], values: {} };
+        const topicData = getTopicData(variable) || { time: [], values: {} };
         const timesArray = topicData.time || [];
         const valuesArray = topicData.values?.[valueKey] || [];
         const alignedTimes = timesArray.slice(-10);
@@ -360,9 +465,8 @@ const Dashboard = () => {
       const colors = [];
       const borderColors = [];
       component.variables.forEach((variable) => {
-        const topic = variable.variable;
         const valueKey = variable.value;
-        const topicData = mqttData[topic];
+        const topicData = getTopicData(variable);
         if (topicData?.values && topicData.values[valueKey] !== undefined) {
           const lastValue = Array.isArray(topicData.values[valueKey])
             ? topicData.values[valueKey][topicData.values[valueKey].length - 1]
@@ -439,24 +543,24 @@ const Dashboard = () => {
     if (component.chartType === "FormulaComponent") {
       // Extraer los valores actuales de las variables para la fórmula
       const variableValues = {};
-      
+
       component.variables.forEach((variable) => {
         const topic = variable.variable;
         const valueKey = variable.value;
         const topicData = mqttData[topic];
-        
+
         if (topicData?.values && topicData.values[valueKey] !== undefined) {
           const lastValue = Array.isArray(topicData.values[valueKey])
             ? topicData.values[valueKey][topicData.values[valueKey].length - 1]
             : topicData.values[valueKey];
-          
+
           if (lastValue !== undefined) {
             // Usamos el nombre de la variable como clave para el objeto de valores
             variableValues[variable.name || valueKey] = parseFloat(lastValue);
           }
         }
       });
-      
+
       // Devolvemos los valores de las variables para que el FormulaComponent los use
       return variableValues;
     }
@@ -511,7 +615,73 @@ const Dashboard = () => {
     return { labels: [], datasets: [] };
   };
 
+  // Función para verificar si un componente tiene datos para mostrar
+  const hasData = (component) => {
+    if (!component.variables || component.variables.length === 0) return false;
+
+    return component.variables.some((variable) => {
+      const topicData = getTopicData(variable);
+      const valueKey = variable.value;
+      return (
+        topicData?.values &&
+        topicData.values[valueKey] !== undefined &&
+        ((Array.isArray(topicData.values[valueKey]) && topicData.values[valueKey].length > 0) ||
+          topicData.values[valueKey] !== null)
+      );
+    });
+  };
+
+  // Componente de carga con mensaje personalizado
+  const LoadingComponent = ({ message = "Cargando datos..." }) => (
+    <Box
+      sx={{
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "center",
+        alignItems: "center",
+        height: "100%",
+        minHeight: "200px",
+        p: 2,
+      }}
+    >
+      <CircularProgress size={40} sx={{ mb: 2, color: themeColors.primary.main }} />
+      <Typography variant="body2" color="textSecondary" align="center">
+        {message}
+      </Typography>
+    </Box>
+  );
+
+  // Componente para mostrar cuando no hay datos
+  const NoDataComponent = ({ message = "No hay datos disponibles" }) => (
+    <Box
+      sx={{
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "center",
+        alignItems: "center",
+        height: "100%",
+        minHeight: "200px",
+        p: 2,
+      }}
+    >
+      <Typography variant="body2" color="textSecondary" align="center">
+        {message}
+      </Typography>
+    </Box>
+  );
+
   const renderComponent = (component, index) => {
+    // Si el componente está cargando, mostrar indicador de carga
+    if (isLoadingHistorical || loadingComponents[component.id]) {
+      return <LoadingComponent message="Cargando datos históricos..." />;
+    }
+
+    // Verificar si hay datos para mostrar
+    const dataAvailable = hasData(component);
+    if (!dataAvailable) {
+      return <NoDataComponent message="No hay datos disponibles para mostrar" />;
+    }
+
     const colSize = columnSizeMap[component.colSize] || { xs: 12, sm: 6, md: 6, lg: 6 };
     const height = component.height || 300;
     const chartData = prepareChart(component);
@@ -772,69 +942,82 @@ const Dashboard = () => {
                 sx={{
                   display: "flex",
                   flexWrap: "wrap",
-                  gap: { xs: 0.5, sm: 1 },
-                  justifyContent: "center",
+                  gap: 3,
+                  justifyContent: { xs: "center", sm: "flex-start" },
                 }}
               >
-                {subdashboards.map((subdashboard) => (
-                  <Card
-                    key={subdashboard.id}
-                    onClick={() => setActiveSubdashboard(subdashboard)}
-                    sx={{
-                      background: activeSubdashboard?.id === subdashboard.id ? "#006875" : "#334155",
-                      backdropFilter: "blur(12px)",
-                      border: activeSubdashboard?.id === subdashboard.id
-                        ? "2px solid rgba(255, 255, 255, 0.2)"
-                        : "1px solid rgba(255, 255, 255, 0.1)",
-                      borderRadius: "10px",
-                      p: { xs: 1, sm: 1.5 },
-                      cursor: "pointer",
-                      transition: "all 0.3s ease",
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: 0.5,
-                      color: "white",
-                      "& .MuiTypography-root": {
-                        color: "white",
-                      },
-                      "&:hover": {
-                        transform: "translateY(-4px)",
-                        boxShadow: "0 10px 20px rgba(0,0,0,0.2)",
-                        background: activeSubdashboard?.id === subdashboard.id ? "#006875" : "#475569",
-                      },
-                      width: { xs: "180px", sm: "200px" }, // Aumentar el ancho para que quepa el texto
-                      minHeight: "80px", // Asegurar una altura mínima
-                    }}
-                  >
-                    <Typography
-                      variant="h6"
+                {subdashboards.map((subdashboard, index) => {
+                  const isActive = activeSubdashboard?.id === subdashboard.id;
+
+                  return (
+                    <Card
+                      key={subdashboard.id}
+                      onClick={() => setActiveSubdashboard(subdashboard)}
                       sx={{
-                        color: "#fff",
-                        fontWeight: 600,
-                        fontSize: { xs: "0.85rem", sm: "0.95rem" }, // Reducir tamaño de fuente
-                        whiteSpace: "nowrap", // Evitar salto de línea
-                        overflow: "hidden",
-                        textOverflow: "ellipsis", // Añadir puntos suspensivos si el texto es muy largo
-                        maxWidth: "100%",
+                        cursor: "pointer",
+                        width: { xs: "100%", sm: "220px", md: "220px" }, // Ajusta el ancho
+                        minHeight: "120px",
+                        display: "flex",
+                        flexDirection: "column",
+                        justifyContent: "space-between",
+                        alignItems: "flex-start",
+                        p: 2,
+                        borderRadius: "16px",
+                        transition: "all 0.3s ease",
+                        // Gradiente distinto si está activo o no
+                        background: isActive
+                          ? "linear-gradient(135deg, #006875 0%, #00a6b4 100%)"
+                          : "linear-gradient(135deg, #334155 0%, #475569 100%)",
+                        boxShadow: isActive
+                          ? "0 10px 25px rgba(0, 166, 180, 0.4)"
+                          : "0 6px 12px rgba(0,0,0,0.15)",
+                        "&:hover": {
+                          transform: "translateY(-4px)",
+                          boxShadow: isActive
+                            ? "0 12px 28px rgba(0, 166, 180, 0.45)"
+                            : "0 10px 20px rgba(0,0,0,0.2)",
+                        },
                       }}
                     >
-                      {subdashboard.name}
-                    </Typography>
-                    <Chip
-                      label={`${components.filter((comp) => comp.subdashboardId === subdashboard.id).length} componentes`}
-                      size="small"
-                      sx={{
-                        backgroundColor: "#0ea5e9",
-                        color: "white",
-                        fontSize: "0.65rem",
-                        fontWeight: 500,
-                        border: "1px solid rgba(255,255,255,0.2)",
-                        height: "20px",
-                        maxWidth: "100%",
-                      }}
-                    />
-                  </Card>
-                ))}
+                      {/* Encabezado sin iconos de edición/eliminación */}
+                      <Box
+                        sx={{
+                          width: "100%",
+                          display: "flex",
+                          justifyContent: "center",
+                          alignItems: "center",
+                          mb: 1,
+                        }}
+                      >
+                        <Typography
+                          variant="h6"
+                          sx={{
+                            fontSize: { xs: "1rem", sm: "1.1rem" },
+                            fontWeight: 600,
+                            color: "#fff",
+                            textAlign: "center"
+                          }}
+                        >
+                          {subdashboard.name}
+                        </Typography>
+                      </Box>
+
+                      {/* Contador de componentes */}
+                      <Chip
+                        label={`${components.filter((comp) => comp.subdashboardId === subdashboard.id).length} componentes`}
+                        size="small"
+                        sx={{
+                          backgroundColor: "rgba(255,255,255,0.2)",
+                          color: "#fff",
+                          fontSize: "0.75rem",
+                          fontWeight: 500,
+                          border: "1px solid rgba(255,255,255,0.2)",
+                          mt: "auto",
+                        }}
+                      />
+                    </Card>
+                  );
+                })}
               </Box>
             )}
           </Paper>

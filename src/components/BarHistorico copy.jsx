@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Button,
   TextField,
@@ -14,13 +14,12 @@ import {
   Tooltip,
   CircularProgress,
 } from "@mui/material";
-import { Line } from "react-chartjs-2";
+import { Bar } from "react-chartjs-2";
 import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
-  PointElement,
-  LineElement,
+  BarElement,
   Title,
   Tooltip as ChartTooltip,
   Legend,
@@ -29,34 +28,14 @@ import ChartDataLabels from 'chartjs-plugin-datalabels';
 import RefreshIcon from "@mui/icons-material/Refresh";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import InfoIcon from "@mui/icons-material/Info";
-import PropTypes from "prop-types";
+import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
+import PropTypes from "prop-types"; 
 
 // Registrar componentes de Chart.js
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, ChartTooltip, Legend, ChartDataLabels);
+ChartJS.register(CategoryScale, LinearScale, BarElement, Title, ChartTooltip, Legend, ChartDataLabels);
 
-// Función para convertir fechas a formato ISO local
-const toLocalISOString = (date) => {
-  const pad = (num) => num.toString().padStart(2, "0");
-
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
-};
-
-// Función auxiliar para convertir colores hex a rgba
-const hexToRgba = (hex, alpha = 1) => {
-  try {
-    if (!hex) return `rgba(0, 0, 0, ${alpha})`;
-    const r = parseInt(hex.slice(1, 3), 16);
-    const g = parseInt(hex.slice(3, 5), 16);
-    const b = parseInt(hex.slice(5, 7), 16);
-    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-  } catch (e) {
-    console.error("Error al convertir color:", e);
-    return hex;
-  }
-};
-
-const LineHistorico = ({ userId, title, variables = [], fetchHistoricalData, height }) => {
-  const [filter, setFilter] = useState("5m");
+const BarHistorico = ({ userId, title, variables = [], fetchHistoricalData, height }) => {
+  const [filter, setFilter] = useState("1D");
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [startDate, setStartDate] = useState("");
   const [startTime, setStartTime] = useState("");
@@ -64,17 +43,14 @@ const LineHistorico = ({ userId, title, variables = [], fetchHistoricalData, hei
   const [endTime, setEndTime] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [data, setData] = useState(null);
-  const chartRef = useRef(null);
-
+  const [chartData, setChartData] = useState(null);
   const fetchData = async (currentFilter = filter) => {
     setLoading(true);
     setError(null);
-    setData(null);
-    
+    setChartData(null);
+  
     try {
       let effectiveStart, effectiveEnd;
-      const now = new Date();
   
       if (currentFilter === "custom") {
         // Si es personalizado, se espera que el usuario haya seleccionado startDate y endDate
@@ -98,32 +74,22 @@ const LineHistorico = ({ userId, title, variables = [], fetchHistoricalData, hei
           }
   
           // Convertir a string ISO sin la "Z"
-          effectiveStart = toLocalISOString(startDateValue);
-          effectiveEnd = toLocalISOString(endDateValue);
+          effectiveStart = startDateValue.toISOString().split(".")[0].replace("Z", "");
+          effectiveEnd = endDateValue.toISOString().split(".")[0].replace("Z", "");
         } else {
           setError("Por favor selecciona fechas de inicio y fin");
           setLoading(false);
           return;
         }
-      } else if (["5m", "30m", "1h", "3h", "12h"].includes(currentFilter)) {
-        const minutesBack = {
-          "5m": 5,
-          "30m": 30,
-          "1h": 60,
-          "3h": 180,
-          "12h": 720
-        }[currentFilter];
-
-        const start = new Date(now.getTime() - minutesBack * 60 * 1000);
-        effectiveStart = toLocalISOString(start);
-        effectiveEnd = toLocalISOString(now);
       } else {
-        // fallback por si algún filtro no está contemplado
-        const start = new Date(now);
-        start.setDate(now.getDate() - 1);
+        // Para filtros predefinidos ("1D", "7D", "30D")
+        const now = new Date();
+        const daysBack = currentFilter === "1D" ? 1 : currentFilter === "7D" ? 7 : 30;
+        // Tomamos el inicio del día para el día calculado
+        const start = new Date(now.getTime() - daysBack * 24 * 60 * 60 * 1000);
         start.setHours(0, 0, 0, 0);
-        effectiveStart = toLocalISOString(start);
-        effectiveEnd = toLocalISOString(now);
+        effectiveStart = start.toISOString().split(".")[0].replace("Z", "");
+        effectiveEnd = now.toISOString().split(".")[0].replace("Z", "");
       }
   
       console.log("Fechas enviadas a fetchHistoricalData:", {
@@ -135,25 +101,23 @@ const LineHistorico = ({ userId, title, variables = [], fetchHistoricalData, hei
       });
   
       // Llamada a la función que obtiene los datos históricos
-      const historicalData = await fetchHistoricalData(
+      const data = await fetchHistoricalData(
         userId,
         variables,
         currentFilter,
         effectiveStart,
         effectiveEnd
       );
-      
-      console.log("Datos históricos recibidos:", historicalData);
-
-      if (!historicalData || historicalData.length === 0) {
+  
+      if (!data || data.length === 0) {
         setError("No se encontraron datos para el período seleccionado. Por favor, intente con otro rango de fechas.");
         setLoading(false);
         return;
       }
-
+  
       // Formateo de los datos para ChartJS
-      setData({
-        labels: historicalData.map((item) => {
+      const formattedData = {
+        labels: data.map((item) => {
           const date = new Date(item.timestamp);
           return date.toLocaleString("es-ES", {
             day: "2-digit",
@@ -165,15 +129,14 @@ const LineHistorico = ({ userId, title, variables = [], fetchHistoricalData, hei
         }),
         datasets: variables.map((variable) => ({
           label: variable.value,
-          data: historicalData.map((item) => item.values[variable.value] || 0),
-          backgroundColor: hexToRgba(variable.color, 0.2), // Usar opacidad 0.2 para el área bajo la línea
-          borderColor: variable.color,
+          data: data.map((item) => item.values[variable.value] || 0),
+          backgroundColor: variable.color || "rgba(54, 162, 235, 1)",
+          borderColor: variable.color ? darkenColor(variable.color, 0.2) : "rgba(54, 162, 235, 1)",
           borderWidth: 2,
-          pointRadius: 4,
-          pointHoverRadius: 6,
-          fill: true,
         })),
-      });
+      };
+  
+      setChartData(formattedData);
     } catch (error) {
       console.error("Error al obtener datos:", error);
       setError(`Error al cargar los datos: ${error.message || "Error desconocido"}`);
@@ -181,6 +144,7 @@ const LineHistorico = ({ userId, title, variables = [], fetchHistoricalData, hei
       setLoading(false);
     }
   };
+  
 
   useEffect(() => {
     fetchData();
@@ -194,14 +158,57 @@ const LineHistorico = ({ userId, title, variables = [], fetchHistoricalData, hei
       setEndTime("");
     }
     setFilter(newFilter);
-    setShowDatePicker(newFilter === "custom");
-    setError(null); // Reiniciar el error al cambiar de filtro
+    setShowDatePicker(newFilter === "custom"); 
+    setError(null); 
   };
 
   const handleCustomFilter = () => {
     if (startDate && endDate) {
-      setFilter("custom");
-      fetchData("custom");
+      let startDateTime, endDateTime;
+      
+      try {
+        // Combinar fecha y hora para inicio
+        if (startTime) {
+          const [startHour, startMinute] = startTime.split(':');
+          const startDateObj = new Date(startDate);
+          startDateObj.setHours(parseInt(startHour, 10), parseInt(startMinute, 10), 0, 0);
+          startDateTime = startDateObj;
+        } else {
+          // Si no hay hora, usar 00:00
+          const startDateObj = new Date(startDate);
+          startDateObj.setHours(0, 0, 0, 0);
+          startDateTime = startDateObj;
+        }
+        
+        // Combinar fecha y hora para fin
+        if (endTime) {
+          const [endHour, endMinute] = endTime.split(':');
+          const endDateObj = new Date(endDate);
+          endDateObj.setHours(parseInt(endHour, 10), parseInt(endMinute, 10), 59, 999);
+          endDateTime = endDateObj;
+        } else {
+          // Si no hay hora, usar 23:59:59.999
+          const endDateObj = new Date(endDate);
+          endDateObj.setHours(23, 59, 59, 999);
+          endDateTime = endDateObj;
+        }
+        
+        // Formatear fechas para depuración
+        console.log("Fechas personalizadas creadas:", {
+          startDateTime: startDateTime.toLocaleString(),
+          endDateTime: endDateTime.toLocaleString(),
+          startISO: startDateTime.toISOString(),
+          endISO: endDateTime.toISOString()
+        });
+        
+        setFilter("custom");
+        setError(null);
+        // Forzar la actualización de los datos inmediatamente
+        fetchData("custom", startDateTime, endDateTime);
+      } catch (error) {
+        console.error("Error al procesar fechas personalizadas:", error);
+        setError("Error al procesar las fechas. Por favor verifica el formato.");
+      }
     } else {
       setError("Por favor selecciona fechas de inicio y fin");
     }
@@ -245,7 +252,9 @@ const LineHistorico = ({ userId, title, variables = [], fetchHistoricalData, hei
         boxPadding: 6,
         usePointStyle: true,
         callbacks: {
-          title: (context) => context[0].label,
+          title: (context) => {
+            return context[0].label;
+          },
           label: (context) => {
             const label = context.dataset.label || "";
             const value = context.parsed.y;
@@ -265,23 +274,23 @@ const LineHistorico = ({ userId, title, variables = [], fetchHistoricalData, hei
         },
         ticks: {
           font: {
-            size: 11,
+            size: 8, 
             family: "'Roboto', 'Helvetica', 'Arial', sans-serif",
           },
           color: "#666",
-          maxRotation: 90,
+          maxRotation: 45, 
           minRotation: 45,
-          autoSkip: true,
-          maxTicksLimit: 10,
+          autoSkip: false, 
+          maxTicksLimit: 100, 
           callback: function (value, index, values) {
             const label = this.getLabelForValue(value);
             if (!label) return "";
 
             try {
-              const parts = label.split(", ");
+              const parts = label.split(" ");
               if (parts.length >= 2) {
                 const datePart = parts[0];
-                const timePart = parts[1].split(":").slice(0, 2).join(":");
+                const timePart = parts[1];
                 return `${datePart}\n${timePart}`;
               }
               return label;
@@ -289,6 +298,9 @@ const LineHistorico = ({ userId, title, variables = [], fetchHistoricalData, hei
               return label;
             }
           },
+        },
+        afterFit: function(scale) {
+          scale.height = 120;
         },
       },
       y: {
@@ -318,23 +330,18 @@ const LineHistorico = ({ userId, title, variables = [], fetchHistoricalData, hei
       mode: "index",
       intersect: false,
     },
+    barPercentage: 0.9,
+    categoryPercentage: 0.8,
+    colors: ['#006875', '#338c98', '#004b55'],
   };
-
-  // Limpiar el gráfico solo al desmontar el componente
-  useEffect(() => {
-    return () => {
-      if (chartRef.current) {
-        chartRef.current.destroy();
-      }
-    };
-  }, []);
 
   return (
     <Card
       elevation={2}
       sx={{
         width: "100%",
-        height: "100%", // Ajustado para heredar altura del padre como en BarHistorico
+        height: "100%",
+        maxHeight: "700px", 
         borderRadius: 3,
         bgcolor: "#ffffff",
         transition: "box-shadow 0.3s ease",
@@ -393,7 +400,7 @@ const LineHistorico = ({ userId, title, variables = [], fetchHistoricalData, hei
                 gap: 1,
               }}
             >
-              {["5m", "30m", "1h", "3h", "12h"].map((option) => (
+              {["1D", "7D", "30D"].map((option) => (
                 <Button
                   key={option}
                   variant={filter === option ? "contained" : "outlined"}
@@ -460,7 +467,11 @@ const LineHistorico = ({ userId, title, variables = [], fetchHistoricalData, hei
                   InputLabelProps={{ shrink: true }}
                   size="small"
                   fullWidth
-                  sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }}
+                  sx={{
+                    "& .MuiOutlinedInput-root": {
+                      borderRadius: 2,
+                    },
+                  }}
                 />
               </Grid>
               <Grid item xs={12} sm={6} md={2}>
@@ -473,7 +484,11 @@ const LineHistorico = ({ userId, title, variables = [], fetchHistoricalData, hei
                   size="small"
                   fullWidth
                   inputProps={{ step: 300 }}
-                  sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }}
+                  sx={{
+                    "& .MuiOutlinedInput-root": {
+                      borderRadius: 2,
+                    },
+                  }}
                 />
               </Grid>
               <Grid item xs={12} sm={6} md={3}>
@@ -485,7 +500,11 @@ const LineHistorico = ({ userId, title, variables = [], fetchHistoricalData, hei
                   InputLabelProps={{ shrink: true }}
                   size="small"
                   fullWidth
-                  sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }}
+                  sx={{
+                    "& .MuiOutlinedInput-root": {
+                      borderRadius: 2,
+                    },
+                  }}
                 />
               </Grid>
               <Grid item xs={12} sm={6} md={2}>
@@ -498,7 +517,11 @@ const LineHistorico = ({ userId, title, variables = [], fetchHistoricalData, hei
                   size="small"
                   fullWidth
                   inputProps={{ step: 300 }}
-                  sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }}
+                  sx={{
+                    "& .MuiOutlinedInput-root": {
+                      borderRadius: 2,
+                    },
+                  }}
                 />
               </Grid>
               <Grid item xs={12} md={2} sx={{ display: "flex", alignItems: "center" }}>
@@ -525,90 +548,97 @@ const LineHistorico = ({ userId, title, variables = [], fetchHistoricalData, hei
           </Paper>
         )}
 
+        {loading && (
+          <Box sx={{ display: "flex", justifyContent: "center", mt: 4 }}>
+            <CircularProgress />
+          </Box>
+        )}
+        
         {error && (
-          <Alert
-            severity="error"
-            variant="filled"
-            onClose={() => setError(null)}
-            sx={{ mb: 3, borderRadius: 2, "& .MuiAlert-message": { fontSize: "0.875rem" } }}
-          >
-            {error}
-          </Alert>
+          <Box sx={{ 
+            display: "flex", 
+            flexDirection: "column",
+            alignItems: "center", 
+            justifyContent: "center", 
+            mt: 4,
+            p: 3,
+            border: "1px solid #f0f0f0",
+            borderRadius: "8px",
+            backgroundColor: "#fafafa"
+          }}>
+            <ErrorOutlineIcon sx={{ fontSize: 60, color: "#d32f2f", mb: 2 }} />
+            <Typography variant="h6" color="error" gutterBottom>
+              No hay datos disponibles
+            </Typography>
+            <Typography variant="body1" color="textSecondary" align="center">
+              {error}
+            </Typography>
+            <Button 
+              variant="contained" 
+              color="primary" 
+              sx={{ mt: 2 }}
+              onClick={() => fetchData(filter)}
+            >
+              Reintentar
+            </Button>
+          </Box>
         )}
 
-        <Box
-          sx={{
-            height: height ? `${height}px` : "400px", // Altura fija para asegurar visibilidad del eje X
-            minHeight: "300px", // Mínimo para garantizar espacio
-            position: "relative",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            borderRadius: 2,
-            bgcolor: "#fafbfc",
-            p: 2,
-            border: "1px solid rgba(0, 0, 0, 0.06)",
-            "& canvas": {
-              maxWidth: "100% !important",
-              width: "100% !important",
-              height: "100% !important",
-            },
-          }}
-        >
-          {loading ? (
-            <Box
-              sx={{
-                textAlign: "center",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: 2,
-              }}
-            >
-              <CircularProgress size={40} thickness={4} />
-              <Typography sx={{ color: "#666", fontSize: "0.875rem" }}>Cargando datos...</Typography>
-            </Box>
-          ) : !data || !data.labels || data.labels.length === 0 ? (
-            <Box
-              sx={{
-                textAlign: "center",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: 2,
-                padding: 3,
-              }}
-            >
-              <InfoIcon sx={{ fontSize: 50, color: "#70bc7e" }} />
-              <Box>
-                <Typography variant="h6" sx={{ color: "#333", mb: 1, fontWeight: 600 }}>
-                  No hay datos disponibles
-                </Typography>
-                <Typography variant="body2" sx={{ color: "#666", maxWidth: "400px", mx: "auto" }}>
-                  No se encontraron datos para el período seleccionado. Prueba a cambiar el filtro o seleccionar un rango de fechas diferente.
-                </Typography>
-              </Box>
-              <Button 
-                variant="outlined" 
-                color="primary" 
-                onClick={fetchData}
-                startIcon={<RefreshIcon />}
-                sx={{ mt: 1, borderRadius: 2 }}
-              >
-                Reintentar
-              </Button>
-            </Box>
-          ) : (
-            <Line ref={chartRef} data={data} options={options} />
-          )}
-        </Box>
+        {!loading && chartData && (
+          <Box
+            sx={{
+              height: height ? `${height}px` : "400px",
+              position: "relative",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: 2,
+              bgcolor: "#fafbfc",
+              p: 2,
+              border: "1px solid rgba(0, 0, 0, 0.06)",
+              "& canvas": {
+                maxWidth: "100% !important",
+                width: "100% !important",
+                height: "100% !important",
+              },
+            }}
+          >
+            <Bar data={chartData} options={options} />
+          </Box>
+        )}
       </CardContent>
     </Card>
   );
 };
 
-LineHistorico.propTypes = {
-  userId: PropTypes.string.isRequired, // Ajustado a string como en BarHistorico
+const hexToRgba = (hex, alpha = 1) => {
+  try {
+    if (!hex) return "rgba(0, 0, 0, " + alpha + ")";
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  } catch (e) {
+    console.error("Error al convertir color:", e);
+    return hex;
+  }
+};
+
+const darkenColor = (hex, factor) => {
+  try {
+    if (!hex) return "rgba(0, 0, 0, 1)";
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${Math.round(r * (1 - factor))}, ${Math.round(g * (1 - factor))}, ${Math.round(b * (1 - factor))}, 1)`;
+  } catch (e) {
+    console.error("Error al oscurecer color:", e);
+    return hex;
+  }
+};
+
+BarHistorico.propTypes = {
+  userId: PropTypes.string.isRequired,
   title: PropTypes.string.isRequired,
   variables: PropTypes.arrayOf(
     PropTypes.shape({
@@ -620,9 +650,9 @@ LineHistorico.propTypes = {
   height: PropTypes.number,
 };
 
-LineHistorico.defaultProps = {
+BarHistorico.defaultProps = {
   variables: [],
   height: 400,
 };
 
-export default LineHistorico;
+export default BarHistorico;
